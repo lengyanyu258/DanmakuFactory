@@ -8,7 +8,7 @@
   "clangd.arguments": [
     "--compile-commands-dir=${workspaceFolder}/.vscode",
   ],
-  "sonarlint.pathToCompileCommands": "${workspaceFolder}/.vscode/compile_commands.json",
+  "sonarlint.pathToCompileCommands": "${workspaceFolder}\\.vscode\\compile_commands.json",
   "Lua.runtime.version": "LuaJIT",
   "Lua.workspace.checkThirdParty": false,
   "Lua.workspace.library": [

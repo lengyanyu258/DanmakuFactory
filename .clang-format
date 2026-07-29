@@ -2,5 +2,10 @@
 ---
 Language: Cpp
 BasedOnStyle: Microsoft
+AlignConsecutiveAssignments: Consecutive
+AlignConsecutiveDeclarations: Consecutive
 AlignConsecutiveMacros: Consecutive
+AlignTrailingComments:
+  OverEmptyLines: 1
 IndentExternBlock: NoIndent
+IndentPPDirectives: BeforeHash

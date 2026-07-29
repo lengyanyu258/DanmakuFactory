@@ -1,17 +1,18 @@
 name: "Build & Release"
 
 on:
+  # TODO: 将 pull_request 事件单独分开为另一个 workflow，如果比较复杂不解耦则不进行改动
   pull_request:
     branches: [master]
     paths:
-      - "src/**/*.c"
-      - "src/**/*.h"
+      - "include/**"
+      - "src/**"
     types: [opened, reopened, ready_for_review]
   push:
     branches: [master]
     paths:
-      - "src/**/*.c"
-      - "src/**/*.h"
+      - "include/**"
+      - "src/**"
   workflow_dispatch:
 
 concurrency:
@@ -24,10 +25,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
 
-    env:
-      PROJECT_NAME: ${{ github.event.repository.name }}
-
     strategy:
+      fail-fast: false
+
       matrix:
         include:
           - os: ubuntu-latest
@@ -37,10 +37,6 @@ jobs:
           - os: ubuntu-24.04-arm
             platform: Linux
             arch: arm64
-
-          - os: macos-13
-            platform: macOS
-            arch: Intel
 
           - os: macos-latest
             platform: macOS
@@ -130,6 +126,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   format:
+    # TODO: 仅修改 .clang-format 文件时也会触发格式化
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
     name: Auto Format Code
     needs: release
@@ -152,19 +149,19 @@ jobs:
           actions-cache-folder: ".xmake-cache"
 
       - name: Format C/C++ files
-        run: xmake format
+        run: xmake clang-format
 
-      - name: Check for changes
-        id: check_changes
-        run: |
-          if git diff --quiet; then
-            echo "changed=0" >> $GITHUB_OUTPUT
-          else
-            echo "changed=1" >> $GITHUB_OUTPUT
-          fi
+      # - name: Check for changes
+      #   id: check_changes
+      #   run: |
+      #     if git diff --quiet; then
+      #       echo "changed=0" >> $GITHUB_OUTPUT
+      #     else
+      #       echo "changed=1" >> $GITHUB_OUTPUT
+      #     fi
 
       - name: Auto commit and push changes
-        if: steps.check_changes.outputs.changed != 0
+        # if: steps.check_changes.outputs.changed != 0
         uses: stefanzweifel/git-auto-commit-action@v6
         with:
           commit_message: "style(format): AUTO format code"

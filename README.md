@@ -35,7 +35,7 @@ cd DanmakuFactory
 3. 编译，可执行文件为 DanmakuFactory
 
 ```shell
-xmake build -v
+xmake build -y -v
 ```
 
 4. 生成 CMakeLists.txt
