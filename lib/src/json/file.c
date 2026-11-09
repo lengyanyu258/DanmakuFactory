@@ -99,31 +99,30 @@ static char *read_file_to_buffer(const char *filepath, size_t *out_size)
  */
 static bool parse_c_field(const char *c_str, float *time, int *color, short *type, short *fontSize)
 {
-    double values[4];
+    double      values[4];
     const char *cursor = c_str;
     for (size_t i = 0; i < ARRAY_SIZE(values); i++)
     {
         char *end;
-        errno = 0;
+        errno     = 0;
         values[i] = strtod(cursor, &end);
-        if (end == cursor || errno == ERANGE || !isfinite(values[i]) ||
-            (i < 3 && *end != ',') || (i == 3 && *end != ',' && *end != '\0'))
+        if (end == cursor || errno == ERANGE || !isfinite(values[i]) || (i < 3 && *end != ',') ||
+            (i == 3 && *end != ',' && *end != '\0'))
         {
             return false;
         }
         cursor = end + (*end == ',' ? 1 : 0);
     }
-    if (values[0] < -MAX_ASS_MS_INT / 1000.0 || values[0] > MAX_ASS_MS_INT / 1000.0 ||
-        values[1] < 0 || values[1] > 0xFFFFFF || trunc(values[1]) != values[1] ||
-        values[2] < 1 || values[2] > SHRT_MAX || trunc(values[2]) != values[2] ||
-        values[3] < 1 || values[3] > SHRT_MAX || trunc(values[3]) != values[3])
+    if (values[0] < -MAX_ASS_MS_INT / 1000.0 || values[0] > MAX_ASS_MS_INT / 1000.0 || values[1] < 0 ||
+        values[1] > 0xFFFFFF || trunc(values[1]) != values[1] || values[2] < 1 || values[2] > SHRT_MAX ||
+        trunc(values[2]) != values[2] || values[3] < 1 || values[3] > SHRT_MAX || trunc(values[3]) != values[3])
     {
         return false;
     }
 
-    *time = (float)values[0];
-    *color = (int)values[1];
-    *type = (short)values[2];
+    *time     = (float)values[0];
+    *color    = (int)values[1];
+    *type     = (short)values[2];
     *fontSize = (short)values[3];
     return true;
 }
@@ -171,12 +170,12 @@ int readJson(const char *const ipFile, df_danmaku_t **head, const char *mode, co
              df_status_t *const status)
 {
     df_danmaku_t *now = NULL, *last = NULL;
-    bool loaded_record = false;
+    bool          loaded_record = false;
 
     /* 刷新status */
     if (status != NULL)
     {
-        status->function        = (void *)readJson;
+        status->function         = (void *)readJson;
         status->completed_number = 0;
     }
 
@@ -328,7 +327,7 @@ int readJson(const char *const ipFile, df_danmaku_t **head, const char *mode, co
         {
             last->next = now;
         }
-        last = now;
+        last          = now;
         loaded_record = true;
 
         /* 更新状态 */
@@ -396,7 +395,7 @@ int writeJson(const char *const fileName, df_danmaku_t *danmakuHead, df_status_t
     /* 刷新status */
     if (status != NULL)
     {
-        status->function        = (void *)writeJson;
+        status->function         = (void *)writeJson;
         status->completed_number = 0;
     }
 
@@ -412,20 +411,18 @@ int writeJson(const char *const fileName, df_danmaku_t *danmakuHead, df_status_t
         return 2;
     }
 
-    yyjson_mut_val *root = yyjson_mut_arr(doc);
+    yyjson_mut_val *root        = yyjson_mut_arr(doc);
     yyjson_mut_val *danmaku_arr = yyjson_mut_arr(doc);
-    if (root == NULL || danmaku_arr == NULL ||
-        !yyjson_mut_arr_add_val(root, yyjson_mut_arr(doc)) ||
-        !yyjson_mut_arr_add_val(root, yyjson_mut_arr(doc)) ||
-        !yyjson_mut_arr_add_val(root, danmaku_arr))
+    if (root == NULL || danmaku_arr == NULL || !yyjson_mut_arr_add_val(root, yyjson_mut_arr(doc)) ||
+        !yyjson_mut_arr_add_val(root, yyjson_mut_arr(doc)) || !yyjson_mut_arr_add_val(root, danmaku_arr))
     {
         yyjson_mut_doc_free(doc);
         return 3;
     }
     yyjson_mut_doc_set_root(doc, root);
 
-    char     c_buf[256];
-    char     time_buf[32];
+    char          c_buf[256];
+    char          time_buf[32];
     df_danmaku_t *ptr = danmakuHead;
 
     while (ptr != NULL)
@@ -442,8 +439,7 @@ int writeJson(const char *const fileName, df_danmaku_t *danmakuHead, df_status_t
         snprintf(c_buf, sizeof(c_buf), "%s,%d,%d,%d,,,", time_buf, ptr->color, typeInJson, ptr->font_size);
 
         yyjson_mut_val *obj = yyjson_mut_obj(doc);
-        if (obj == NULL ||
-            !yyjson_mut_obj_add_strcpy(doc, obj, "c", c_buf) ||
+        if (obj == NULL || !yyjson_mut_obj_add_strcpy(doc, obj, "c", c_buf) ||
             !yyjson_mut_obj_add_str(doc, obj, "m", ptr->text ? ptr->text : "") ||
             !yyjson_mut_arr_add_val(danmaku_arr, obj))
         {
@@ -461,7 +457,7 @@ int writeJson(const char *const fileName, df_danmaku_t *danmakuHead, df_status_t
     }
 
     size_t json_length = 0;
-    char *json_str = yyjson_mut_write(doc, 0, &json_length);
+    char  *json_str    = yyjson_mut_write(doc, 0, &json_length);
     if (json_str == NULL)
     {
         yyjson_mut_doc_free(doc);

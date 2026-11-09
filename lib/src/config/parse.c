@@ -58,7 +58,7 @@ yyjson_val *df_json_get_member(yyjson_val *object, const char *name)
         return value;
     }
 
-    size_t index, size;
+    size_t      index, size;
     yyjson_val *key;
     yyjson_obj_foreach(object, index, size, key, value)
     {
@@ -100,18 +100,29 @@ static yyjson_val *json_get_config_field(yyjson_val *config, const char *section
         const char *field;
         const char *alias;
     } aliases[] = {
-        {"screen", "display_area", "displayarea"}, {"screen", "scroll_area", "scrollarea"},
+        {"screen", "display_area", "displayarea"},
+        {"screen", "scroll_area", "scrollarea"},
         {"screen", "statistics_mode", "statmode"},
-        {"danmaku", "scroll_duration", "scrolltime"}, {"danmaku", "fixed_duration", "fixtime"},
-        {"danmaku", "block_mode", "blockmode"}, {"danmaku", "keep_blocked", "saveblocked"},
-        {"danmaku", "show_username", "show_usernames"}, {"danmaku", "show_username", "showusernames"},
-        {"danmaku", "block_list", "blacklist"}, {"danmaku", "block_list_regex_enabled", "blacklist_regex"},
-        {"text", "font_size", "fontsize"}, {"text", "line_spacing", "linespacing"},
-        {"msgbox", "show", "show_msgbox"}, {"msgbox", "show", "showmsgbox"},
-        {"msgbox", "size", "msgboxsize"}, {"msgbox", "pos", "msgboxpos"},
-        {"msgbox", "font_size", "msgbox_fontsize"}, {"msgbox", "font_size", "msgboxfontsize"},
-        {"msgbox", "duration", "msgboxduration"}, {"msgbox", "duration", "duration"},
-        {"msgbox", "gift_min_price", "gift_min_price"}, {"msgbox", "gift_min_price", "giftminprice"},
+        {"danmaku", "scroll_duration", "scrolltime"},
+        {"danmaku", "fixed_duration", "fixtime"},
+        {"danmaku", "block_mode", "blockmode"},
+        {"danmaku", "keep_blocked", "saveblocked"},
+        {"danmaku", "show_username", "show_usernames"},
+        {"danmaku", "show_username", "showusernames"},
+        {"danmaku", "block_list", "blacklist"},
+        {"danmaku", "block_list_regex_enabled", "blacklist_regex"},
+        {"text", "font_size", "fontsize"},
+        {"text", "line_spacing", "linespacing"},
+        {"msgbox", "show", "show_msgbox"},
+        {"msgbox", "show", "showmsgbox"},
+        {"msgbox", "size", "msgboxsize"},
+        {"msgbox", "pos", "msgboxpos"},
+        {"msgbox", "font_size", "msgbox_fontsize"},
+        {"msgbox", "font_size", "msgboxfontsize"},
+        {"msgbox", "duration", "msgboxduration"},
+        {"msgbox", "duration", "duration"},
+        {"msgbox", "gift_min_price", "gift_min_price"},
+        {"msgbox", "gift_min_price", "giftminprice"},
     };
     for (size_t i = 0; i < ARRAY_SIZE(aliases); i++)
     {
@@ -165,7 +176,7 @@ static df_error_code_t parse_float_json_val(yyjson_val *json_val, float *number)
     }                                                                                                                  \
     else if (unsafe_yyjson_is_num(json_val))                                                                           \
     {                                                                                                                  \
-        *bool_val = unsafe_yyjson_get_num(json_val) != 0;                                                         \
+        *bool_val = unsafe_yyjson_get_num(json_val) != 0;                                                              \
     }                                                                                                                  \
     else                                                                                                               \
     {                                                                                                                  \
@@ -210,13 +221,15 @@ df_error_code_t df_parse_runtime_info_json_str(const char *json_str, df_runtime_
     }
 
     // Get root["input_files"]
-    if (df_parse_input_files_json_val(df_json_get_member(root, "input_files"), &runtime_info->input_files) != DF_SUCCESS)
+    if (df_parse_input_files_json_val(df_json_get_member(root, "input_files"), &runtime_info->input_files) !=
+        DF_SUCCESS)
     {
         goto end;
     }
 
     // Get root["output_file"]
-    if (df_parse_output_file_json_val(df_json_get_member(root, "output_file"), &runtime_info->output_file) != DF_SUCCESS)
+    if (df_parse_output_file_json_val(df_json_get_member(root, "output_file"), &runtime_info->output_file) !=
+        DF_SUCCESS)
     {
         goto end;
     }
@@ -247,7 +260,8 @@ df_error_code_t df_parse_config_json_val(yyjson_val *json_val, df_config_t *conf
     }
 
 #define PARSE_CONFIG_JSON_VAL(section, field, out_val)                                                                 \
-    if (df_parse_##section##_##field##_json_val(json_get_config_field(json_val, #section, #field), out_val) != DF_SUCCESS) \
+    if (df_parse_##section##_##field##_json_val(json_get_config_field(json_val, #section, #field), out_val) !=         \
+        DF_SUCCESS)                                                                                                    \
     {                                                                                                                  \
         return df_get_last_error_code();                                                                               \
     }
@@ -322,7 +336,7 @@ df_error_code_t df_parse_input_files_json_val(yyjson_val *json_val, df_fileinfos
         return DF_SET_ERROR(DF_ERROR_INTERNAL_OUT_OF_MEMORY, "Failed to allocate memory for input file infos");
     }
 
-    size_t index, size;
+    size_t      index, size;
     yyjson_val *item;
     yyjson_arr_foreach(json_val, index, size, item)
     {
@@ -335,7 +349,7 @@ df_error_code_t df_parse_input_files_json_val(yyjson_val *json_val, df_fileinfos
     }
 
     free(input_files->fileinfos);
-    input_files->number = number;
+    input_files->number    = number;
     input_files->fileinfos = fileinfos;
     return DF_SET_SUCCESS();
 }
@@ -373,7 +387,7 @@ df_error_code_t df_parse_screen_statistics_mode_json_val(yyjson_val *json_val, d
     };
 
     CHECK_JSON_AND_OUT_VAL(json_val, statistics_mode);
-    uint64_t mode = 0;
+    uint64_t        mode = 0;
     df_error_code_t result =
         df_parse_mode_json_val(json_val, statistics_mode_mappings, ARRAY_SIZE(statistics_mode_mappings), &mode);
     if (result != DF_SUCCESS)
@@ -422,7 +436,7 @@ df_error_code_t df_parse_danmaku_block_mode_json_val(yyjson_val *json_val, df_bl
     };
 
     CHECK_JSON_AND_OUT_VAL(json_val, block_mode);
-    uint64_t mode = 0;
+    uint64_t        mode = 0;
     df_error_code_t result =
         df_parse_mode_json_val(json_val, block_mode_mappings, ARRAY_SIZE(block_mode_mappings), &mode);
     if (result != DF_SUCCESS)
@@ -584,8 +598,8 @@ df_error_code_t df_parse_coordinate_json_val(yyjson_val *json_val, df_coord_t *c
     if (unsafe_yyjson_is_str(json_val))
     {
         const char *coord_str = unsafe_yyjson_get_str(json_val);
-        char *end;
-        errno = 0;
+        char       *end;
+        errno  = 0;
         long x = strtol(coord_str, &end, 10);
         if (end == coord_str || errno == ERANGE || x < INT_MIN || x > INT_MAX)
         {
@@ -600,7 +614,7 @@ df_error_code_t df_parse_coordinate_json_val(yyjson_val *json_val, df_coord_t *c
         {
             return DF_SET_ERROR(DF_ERROR_INVALID_VALUE, "Missing coordinate separator");
         }
-        errno = 0;
+        errno  = 0;
         long y = strtol(second, &end, 10);
         if (end == second || errno == ERANGE || y < INT_MIN || y > INT_MAX)
         {
@@ -628,8 +642,7 @@ df_error_code_t df_parse_coordinate_json_val(yyjson_val *json_val, df_coord_t *c
         yyjson_val *y_val = x_val + 1;
 
         df_coord_t parsed;
-        if (parse_int_json_val(x_val, &parsed.x) != DF_SUCCESS ||
-            parse_int_json_val(y_val, &parsed.y) != DF_SUCCESS)
+        if (parse_int_json_val(x_val, &parsed.x) != DF_SUCCESS || parse_int_json_val(y_val, &parsed.y) != DF_SUCCESS)
         {
             return df_get_last_error_code();
         }
@@ -712,7 +725,7 @@ df_error_code_t df_parse_string_array_json_val(yyjson_val *json_val, char ***str
     {
         return DF_SET_ERROR(DF_ERROR_INVALID_JSON, "String list must be an array");
     }
-    size_t idx = 0;
+    size_t idx  = 0;
     size_t size = yyjson_arr_size(json_val);
     if (size > SIZE_MAX / sizeof(char *) - 1)
     {
@@ -778,8 +791,7 @@ df_error_code_t df_parse_fileinfo_json_val(yyjson_val *json_val, df_fileinfo_t *
     }
 
     const char *file_path = yyjson_get_str(path_val);
-    if (file_path == NULL || yyjson_get_len(path_val) == 0 ||
-        strlen(file_path) != yyjson_get_len(path_val))
+    if (file_path == NULL || yyjson_get_len(path_val) == 0 || strlen(file_path) != yyjson_get_len(path_val))
     {
         return DF_SET_ERROR(DF_ERROR_INVALID_JSON, "File path must be a nonempty string without NUL characters");
     }
@@ -790,7 +802,7 @@ df_error_code_t df_parse_fileinfo_json_val(yyjson_val *json_val, df_fileinfo_t *
     {
         return df_get_last_error_code();
     }
-    fileinfo->type       = get_filetype(file_path);
+    fileinfo->type = get_filetype(file_path);
 
     // 显式文件类型（可选，对应 df_fileinfo_t.type，覆盖扩展名推断）
     yyjson_val *type_val = df_json_get_member(json_val, "type");

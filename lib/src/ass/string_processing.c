@@ -154,7 +154,7 @@ char *deStyleNamePrefix(char *str)
     }
 
     char *leftPtr, *rightPtr;
-    leftPtr = str;
+    leftPtr  = str;
     rightPtr = str + 21; /* 从22个字节开始寻找字符 '_' 下划线 */
 
     while (*rightPtr != '\0' && *(rightPtr - 1) != '_')
@@ -184,19 +184,19 @@ int timeToInt(const char *ipStr)
     }
 
     char *end;
-    errno = 0;
+    errno      = 0;
     long hours = strtol(ipStr, &end, 10);
     if (end == ipStr || errno == ERANGE || hours < 0 || hours > MAX_ASS_MS_INT / 3600000 || *end != ':')
     {
         return -1;
     }
-    const char *cursor = end + 1;
-    long minutes = strtol(cursor, &end, 10);
+    const char *cursor  = end + 1;
+    long        minutes = strtol(cursor, &end, 10);
     if (end == cursor || errno == ERANGE || minutes < 0 || minutes > 59 || *end != ':')
     {
         return -1;
     }
-    cursor = end + 1;
+    cursor         = end + 1;
     double seconds = strtod(cursor, &end);
     if (end == cursor || errno == ERANGE || !isfinite(seconds) || seconds < 0 || seconds >= 60)
     {
@@ -245,10 +245,10 @@ char *assEscape(char *dstStr, char *srcStr, int dstStrLen, int mode)
         return NULL;
     }
 
-    int lenCnt = 0;
+    int   lenCnt = 0;
     char *srcPtr, *dstPtr;
     char *originalTextPtr, *assEscapedTextPtr;
-    char utf8Hex[5];
+    char  utf8Hex[5];
     srcPtr = srcStr;
     dstPtr = dstStr;
 
@@ -259,12 +259,12 @@ char *assEscape(char *dstStr, char *srcStr, int dstStrLen, int mode)
         {
             if (mode == ASS_ESCAPE)
             {
-                originalTextPtr = assEscapeList[listCnt].originalText;
+                originalTextPtr   = assEscapeList[listCnt].originalText;
                 assEscapedTextPtr = assEscapeList[listCnt].assEscapedText;
             }
             else
             {
-                originalTextPtr = assEscapeList[listCnt].assEscapedText;
+                originalTextPtr   = assEscapeList[listCnt].assEscapedText;
                 assEscapedTextPtr = assEscapeList[listCnt].originalText;
             }
 
@@ -276,7 +276,7 @@ char *assEscape(char *dstStr, char *srcStr, int dstStrLen, int mode)
                 break;
             }
 
-            char *srcCmpPtr = srcPtr;
+            char *srcCmpPtr          = srcPtr;
             char *originalTextCmpPtr = originalTextPtr;
             while (*originalTextCmpPtr != '\0' && *srcCmpPtr != '\0')
             {

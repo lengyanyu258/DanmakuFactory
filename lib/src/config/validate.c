@@ -36,7 +36,7 @@
 #define FLOAT_GREATER_OR_EQUAL(a, b) (a > b - EPS)
 
 #define VALIDATE_FLOAT_RANGE_INCLUDE(number, left_endpoint, right_endpoint)                                            \
-    if (!isfinite(number) || (number < left_endpoint - EPS) || (number > right_endpoint + EPS))                                             \
+    if (!isfinite(number) || (number < left_endpoint - EPS) || (number > right_endpoint + EPS))                        \
     {                                                                                                                  \
         return DF_SET_ERROR(DF_ERROR_INVALID_CONFIG, "`" #number "` must be a real number in range [" #left_endpoint   \
                                                      ", " #right_endpoint "].");                                       \
@@ -44,7 +44,7 @@
     return DF_SET_SUCCESS()
 
 #define VALIDATE_FLOAT_RANGE_INCLUDE_RIGHT_ENDPOINT(number, left_endpoint, right_endpoint)                             \
-    if (!isfinite(number) || (number < left_endpoint + EPS) || (number > right_endpoint + EPS))                                             \
+    if (!isfinite(number) || (number < left_endpoint + EPS) || (number > right_endpoint + EPS))                        \
     {                                                                                                                  \
         return DF_SET_ERROR(DF_ERROR_INVALID_CONFIG, "`" #number "` must be a real number in range (" #left_endpoint   \
                                                      ", " #right_endpoint "].");                                       \
@@ -52,7 +52,7 @@
     return DF_SET_SUCCESS()
 
 #define VALIDATE_FLOAT_GREATER(number, lower_bound)                                                                    \
-    if (!isfinite(number) || number < lower_bound + EPS)                                                                                    \
+    if (!isfinite(number) || number < lower_bound + EPS)                                                               \
     {                                                                                                                  \
         return DF_SET_ERROR(DF_ERROR_INVALID_CONFIG,                                                                   \
                             "`" #number "` must be a real number greater than " #lower_bound ".");                     \
@@ -60,7 +60,7 @@
     return DF_SET_SUCCESS()
 
 #define VALIDATE_FLOAT_GREATER_OR_EQUAL(number, minimum)                                                               \
-    if (!isfinite(number) || !FLOAT_GREATER_OR_EQUAL(number, minimum))                                                                      \
+    if (!isfinite(number) || !FLOAT_GREATER_OR_EQUAL(number, minimum))                                                 \
     {                                                                                                                  \
         return DF_SET_ERROR(DF_ERROR_INVALID_CONFIG,                                                                   \
                             "`" #number "` must be a real number greater than or equal to " #minimum ".");             \

@@ -210,8 +210,7 @@ DF_API df_error_code_t df_add_input_file(df_context_t *ctx, const char *path, fl
  * @param type       格式名称："xml"、"json" 或 "ass"（大小写不敏感）
  * @return DF_SUCCESS 或相应错误码
  */
-DF_API df_error_code_t df_add_input_file_typed(df_context_t *ctx, const char *path, float time_shift,
-                                               const char *type);
+DF_API df_error_code_t df_add_input_file_typed(df_context_t *ctx, const char *path, float time_shift, const char *type);
 
 /**
  * @brief 清除已添加的全部输入文件

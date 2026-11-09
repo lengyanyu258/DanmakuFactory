@@ -79,11 +79,11 @@ extern "C"
 /* 弹幕节点定义 */
 typedef struct single_danmaku_s
 {
-    int                        time;      /* 开始时间(毫秒) */
-    short                      type;      /* 弹幕类型 */
-    short                      font_size; /* 字体大小 25是基准 */
-    int                        color;     /* 文字颜色 */
-    char                      *text;      /* 文本内容 */
+    int                            time;      /* 开始时间(毫秒) */
+    short                          type;      /* 弹幕类型 */
+    short                          font_size; /* 字体大小 25是基准 */
+    int                            color;     /* 文字颜色 */
+    char                          *text;      /* 文本内容 */
     struct user_part_s            *user;      /* 用户信息部分 */
     struct gift_part_s            *gift;      /* 礼物信息部分 */
     struct special_danmaku_part_s *special;   /* 特殊弹幕部分 */

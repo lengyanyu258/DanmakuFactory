@@ -47,7 +47,7 @@ int readTemplateFile(const char *const ipFile, const char *const templateFile, d
     /* 刷新status */
     if (status != NULL)
     {
-        status->function = (void *)readTemplateFile;
+        status->function           = (void *)readTemplateFile;
         (status->completed_number) = 0;
     }
 
@@ -97,11 +97,11 @@ int readTemplateFile(const char *const ipFile, const char *const templateFile, d
 
     /* 解析模板 */
     int   lineCnt = 0;
-    int   tar = TAR_NULL;
+    int   tar     = TAR_NULL;
     char  lineStr[LINE_MAX_LEN], tempStr[LINE_MAX_LEN], tempMsgStr[LINE_MAX_LEN];
     char *linePtr, *tempPtr;
     int   formatTableIndex = 0;
-    int   strTableIndex = 0;
+    int   strTableIndex    = 0;
 
     /* 读取版本信息行 */
     fgets(lineStr, LINE_MAX_LEN, tempfptr);
@@ -252,7 +252,7 @@ int readTemplateFile(const char *const ipFile, const char *const templateFile, d
                                 return 2;
                             }
                             strcpy(format.strTable[strTableIndex], tempStr);
-                            tempPtr = tempStr;
+                            tempPtr                              = tempStr;
                             format.formatTable[formatTableIndex] = strTableIndex;
 
                             strTableIndex++;
@@ -385,7 +385,7 @@ int readTemplateFile(const char *const ipFile, const char *const templateFile, d
     } /* 文件解析结束 */
 
     format.formatTableLen = formatTableIndex;
-    format.strTableLen = strTableIndex;
+    format.strTableLen    = strTableIndex;
 
     /* 去除格式字符串前后空白字符 */
     if (format.formatTableLen >= 2)
@@ -413,7 +413,7 @@ int readTemplateFile(const char *const ipFile, const char *const templateFile, d
         if (!FORMAT_IS_VAR(format.formatTable[format.formatTableLen - 1]))
         {
             formatStr = format.strTable[format.formatTable[format.formatTableLen - 1]];
-            leftPtr = formatStr;
+            leftPtr   = formatStr;
             while (!STR_IS_BLANK(leftPtr) && *leftPtr != '\0')
             {
                 leftPtr++;
@@ -454,11 +454,11 @@ int readTemplateFile(const char *const ipFile, const char *const templateFile, d
             return -1;
         }
 
-        int timeDefineTimes = 0;
-        int typeDefineTimes = 0;
-        int colorDefineTimes = 0;
+        int timeDefineTimes     = 0;
+        int typeDefineTimes     = 0;
+        int colorDefineTimes    = 0;
         int fontsizeDefineTimes = 0;
-        int textDefineTimes = 0;
+        int textDefineTimes     = 0;
 
         for (cnt = 1; cnt < format.formatTableLen; cnt++)
         {
@@ -596,10 +596,10 @@ int readTemplateFile(const char *const ipFile, const char *const templateFile, d
             //          freeList(*danmakuHead);
             return 4;
         }
-        readDanmaku->type = HAVE_NOT_BEEN_SET;
+        readDanmaku->type      = HAVE_NOT_BEEN_SET;
         readDanmaku->font_size = HAVE_NOT_BEEN_SET;
-        readDanmaku->color = HAVE_NOT_BEEN_SET;
-        readDanmaku->text = NULL;
+        readDanmaku->color     = HAVE_NOT_BEEN_SET;
+        readDanmaku->text      = NULL;
 
         for (cnt = 0; cnt < format.formatTableLen; cnt++)
         {
@@ -617,7 +617,7 @@ int readTemplateFile(const char *const ipFile, const char *const templateFile, d
                         goto LINE_END;
                     }
                 }
-                *tempPtr = '\0';
+                *tempPtr       = '\0';
                 float tempTime = atof(tempStr) / setTime.ratioToSeconds + timeShift;
                 if (tempTime < EPS)
                 {
@@ -677,7 +677,7 @@ int readTemplateFile(const char *const ipFile, const char *const templateFile, d
                         goto LINE_END;
                     }
                 }
-                *tempPtr = '\0';
+                *tempPtr           = '\0';
                 readDanmaku->color = atoi(tempStr);
             }
             else if (format.formatTable[cnt] == FORMAT_FONTSIZE)
@@ -694,12 +694,12 @@ int readTemplateFile(const char *const ipFile, const char *const templateFile, d
                         goto LINE_END;
                     }
                 }
-                *tempPtr = '\0';
+                *tempPtr               = '\0';
                 readDanmaku->font_size = atoi(tempStr);
             }
             else if (format.formatTable[cnt] == FORMAT_TEXT)
             {
-                tempPtr = tempStr;
+                tempPtr         = tempStr;
                 char *formatStr = format.strTable[format.formatTable[cnt + 1]];
                 while (!isStartWith(bufferPtr, formatStr))
                 {
@@ -807,7 +807,7 @@ int readTemplateFile(const char *const ipFile, const char *const templateFile, d
             {
                 last->next = readDanmaku;
             }
-            last = readDanmaku;
+            last       = readDanmaku;
             last->next = NULL;
             status->total_number++;
         }

@@ -29,7 +29,7 @@
 #include <string.h>
 
 #ifndef __EMSCRIPTEN__
-#include <pcre2.h>
+    #include <pcre2.h>
 #endif
 
 #include "base/define.h"
@@ -48,9 +48,9 @@ int sortList(df_danmaku_t **listHead, df_status_t *const status)
     /* 刷新status */
     if (status != NULL)
     {
-        status->function = (void *)&sortList;
+        status->function           = (void *)&sortList;
         (status->completed_number) = 0;
-        status->is_done = false;
+        status->is_done            = false;
     }
 
     if (*listHead == NULL)
@@ -61,7 +61,7 @@ int sortList(df_danmaku_t **listHead, df_status_t *const status)
         return 1;
     }
 
-    df_danmaku_t *now = (*listHead)->next;
+    df_danmaku_t *now      = (*listHead)->next;
     df_danmaku_t *previous = *listHead;
     bool          isSorted = true;
 
@@ -95,7 +95,7 @@ int sortList(df_danmaku_t **listHead, df_status_t *const status)
 
     /* 申请桶空间并清0 */
     int            bucketNum = danmakuNum / 128 + 1;
-    df_danmaku_t **bucket = NULL;
+    df_danmaku_t **bucket    = NULL;
     if ((bucket = (df_danmaku_t **)malloc(sizeof(df_danmaku_t *) * bucketNum)) == NULL)
     {
 #if PRINT_ERR == true
@@ -112,7 +112,7 @@ int sortList(df_danmaku_t **listHead, df_status_t *const status)
     df_danmaku_t *last;
     do
     {
-        now = *listHead;
+        now   = *listHead;
         index = (int)(bucketNum * (((double)now->time - (double)min) / denominator));
         if (index >= bucketNum || index < 0)
         {
@@ -124,7 +124,7 @@ int sortList(df_danmaku_t **listHead, df_status_t *const status)
         if (bucket[index] == NULL)
         { /* 如果该桶为空则将新节点指针填入 */
             bucket[index] = now;
-            now->next = NULL;
+            now->next     = NULL;
         }
         else
         {
@@ -196,9 +196,9 @@ df_error_code_t blockByType(df_danmaku_t *const danmakuHead, const int mode, cha
 
     // 先编译所有正则表达式
 #ifndef __EMSCRIPTEN__
-    pcre2_code **regCodes      = NULL;
-    int         *regCodeMap    = NULL; /* regCodeMap[j] = 对应 keyStrings 的下标 */
-    int          regCodeCount  = 0;
+    pcre2_code **regCodes     = NULL;
+    int         *regCodeMap   = NULL; /* regCodeMap[j] = 对应 keyStrings 的下标 */
+    int          regCodeCount = 0;
 
     if (block_list_regex_enabled && keyStrings != NULL)
     {
@@ -227,8 +227,8 @@ df_error_code_t blockByType(df_danmaku_t *const danmakuHead, const int mode, cha
             }
             if (newRegCodes != NULL && newRegMap != NULL)
             {
-                regCodes[regCodeCount]     = code;
-                regCodeMap[regCodeCount]   = i;
+                regCodes[regCodeCount]   = code;
+                regCodeMap[regCodeCount] = i;
                 regCodeCount++;
             }
             else
@@ -241,8 +241,7 @@ df_error_code_t blockByType(df_danmaku_t *const danmakuHead, const int mode, cha
                 }
                 free(regCodes);
                 free(regCodeMap);
-                return DF_SET_ERROR(DF_ERROR_INTERNAL_OUT_OF_MEMORY,
-                                    "Out of memory while compiling block list regex");
+                return DF_SET_ERROR(DF_ERROR_INTERNAL_OUT_OF_MEMORY, "Out of memory while compiling block list regex");
             }
         }
     }
@@ -321,9 +320,8 @@ df_error_code_t blockByType(df_danmaku_t *const danmakuHead, const int mode, cha
                             // OOM，跳过本条匹配
                             continue;
                         }
-                        int matchNum =
-                            pcre2_match(matchedCode, (PCRE2_SPTR)ptr->text, PCRE2_ZERO_TERMINATED, 0, 0, matchData,
-                                        NULL);
+                        int matchNum = pcre2_match(matchedCode, (PCRE2_SPTR)ptr->text, PCRE2_ZERO_TERMINATED, 0, 0,
+                                                   matchData, NULL);
                         pcre2_match_data_free(matchData);
 
                         if (matchNum >= 0)

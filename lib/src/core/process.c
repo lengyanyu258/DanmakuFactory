@@ -30,8 +30,8 @@
 #include "base/error.h"
 #include "base/utils.h"
 #include "core/list.h"
-#include "json/file.h"
 #include "xml/file.h"
+#include "json/file.h"
 
 /*
  * 读取单个输入文件（追加模式）并把旧模块的 int 错误码映射为 df_error_code_t。
@@ -104,8 +104,8 @@ static df_error_code_t read_one_file(const df_fileinfo_t *fileinfo, df_danmaku_t
         }
         if (code / 10 >= 5 || code == 7)
         {
-            return DF_SET_ERROR(DF_ERROR_INVALID_FILE_FORMAT, "Invalid ASS time in \"%s\" [code ra%d]",
-                                fileinfo->path, code);
+            return DF_SET_ERROR(DF_ERROR_INVALID_FILE_FORMAT, "Invalid ASS time in \"%s\" [code ra%d]", fileinfo->path,
+                                code);
         }
         /* 十位 2-4 与个位 1-6 均为内存申请失败 */
         return DF_SET_ERROR(DF_ERROR_INTERNAL_OUT_OF_MEMORY, "Out of memory while reading \"%s\" [code ra%d]",
@@ -146,9 +146,8 @@ df_error_code_t df_process_danmaku_pool(const df_config_t *config, df_danmaku_t 
     }
 
     /* 屏蔽 */
-    df_error_code_t block_code =
-        blockByType(*danmaku_pool, config->danmaku.block_mode, config->danmaku.block_list,
-                    config->danmaku.block_list_regex_enabled);
+    df_error_code_t block_code = blockByType(*danmaku_pool, config->danmaku.block_mode, config->danmaku.block_list,
+                                             config->danmaku.block_list_regex_enabled);
     if (block_code != DF_SUCCESS)
     {
         return block_code;
@@ -175,8 +174,8 @@ df_error_code_t df_process_danmaku_pool(const df_config_t *config, df_danmaku_t 
 static df_error_code_t validate_ass_time_bounds(const df_config_t *config, const df_danmaku_t *head)
 {
     int64_t scroll_ms = GET_ASS_MS_FLT(config->danmaku.scroll_duration);
-    int64_t fixed_ms = GET_ASS_MS_FLT(config->danmaku.fixed_duration);
-    int64_t msg_ms = GET_ASS_MS_FLT(config->msgbox.duration);
+    int64_t fixed_ms  = GET_ASS_MS_FLT(config->danmaku.fixed_duration);
+    int64_t msg_ms    = GET_ASS_MS_FLT(config->msgbox.duration);
     for (const df_danmaku_t *node = head; node; node = node->next)
     {
         int64_t start = node->time;
@@ -184,7 +183,7 @@ static df_error_code_t validate_ass_time_bounds(const df_config_t *config, const
         {
             return DF_SET_ERROR(DF_ERROR_INVALID_FILE_FORMAT, "Danmaku time exceeds the supported ASS range");
         }
-        start = (start + 5) / 10 * 10;
+        start            = (start + 5) / 10 * 10;
         int64_t duration = 0;
         if (IS_R2L(node) || IS_L2R(node))
         {
@@ -216,8 +215,7 @@ static df_error_code_t validate_ass_time_bounds(const df_config_t *config, const
                 return DF_SET_ERROR(DF_ERROR_INVALID_FILE_FORMAT, "Message animation exceeds the supported ASS range");
             }
         }
-        if (start + duration > MAX_ASS_MS_INT ||
-            (config->screen.statistics_mode && start + 30000 > MAX_ASS_MS_INT))
+        if (start + duration > MAX_ASS_MS_INT || (config->screen.statistics_mode && start + 30000 > MAX_ASS_MS_INT))
         {
             return DF_SET_ERROR(DF_ERROR_INVALID_FILE_FORMAT, "Danmaku end time exceeds the supported ASS range");
         }
@@ -236,14 +234,13 @@ df_error_code_t df_process_write_file(const df_config_t *config, df_danmaku_t *d
 
     switch (output_file->type)
     {
-    case DF_FILETYPE_ASS:
+    case DF_FILETYPE_ASS: {
+        df_error_code_t time_code = validate_ass_time_bounds(config, danmaku_pool);
+        if (time_code != DF_SUCCESS)
         {
-            df_error_code_t time_code = validate_ass_time_bounds(config, danmaku_pool);
-            if (time_code != DF_SUCCESS)
-            {
-                return time_code;
-            }
+            return time_code;
         }
+    }
         code = writeAss(output_file->path, danmaku_pool, *config, NULL, NULL);
         if (code == 0)
         {
@@ -282,8 +279,7 @@ df_error_code_t df_process_write_file(const df_config_t *config, df_danmaku_t *d
                             code == 2 ? "create" : "write", output_file->path, code);
 
     default:
-        return DF_SET_ERROR(DF_ERROR_INVALID_FILE_FORMAT, "Unsupported output file type of \"%s\"",
-                            output_file->path);
+        return DF_SET_ERROR(DF_ERROR_INVALID_FILE_FORMAT, "Unsupported output file type of \"%s\"", output_file->path);
     }
 }
 

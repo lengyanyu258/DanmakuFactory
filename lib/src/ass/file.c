@@ -66,7 +66,7 @@ int readAss(const char *const fileName, df_danmaku_t **danmakuHead, const char *
     }
 
     ASSFILE assDanmaku = {0};
-    int read_code = readAssFile(&assDanmaku, fileName);
+    int     read_code  = readAssFile(&assDanmaku, fileName);
     if (read_code != 0)
     {
         return read_code * 10;
@@ -378,14 +378,14 @@ int readAssFile(ASSFILE *assFile, const char *const fileName)
 int assFileToDanmaku(ASSFILE *inputSub, df_danmaku_t **danmakuHead, const char *mode, ASSFILE *outputSub,
                      const float timeShift, df_status_t *const status)
 {
-    int           cnt;
-    char          tempStr[ASS_MAX_LINE_LEN];        /* 临时字符串 */
-    char         *leftPtr, *rightPtr;               /* 临时指针 定位字符串左边与右边 */
-    EVENT        *newEventNode, *tailEventNode;     /* 事件新节点 事件尾节点 */
-    EVENT        *inEventPtr, *outEventPtr;         /* 输入输出事件节点指针 */
-    STYLE        *inStyleArr, *outStyleArr;         /* 输入输出样式数组 */
-    df_danmaku_t *newDanmakuNode, *tailDanmakuNode; /* 弹幕新节点 弹幕尾节点 */
-    df_special_danmaku_part_t *newSpcialPart;      /* 新建弹幕特殊部分结构体 */
+    int                        cnt;
+    char                       tempStr[ASS_MAX_LINE_LEN];        /* 临时字符串 */
+    char                      *leftPtr, *rightPtr;               /* 临时指针 定位字符串左边与右边 */
+    EVENT                     *newEventNode, *tailEventNode;     /* 事件新节点 事件尾节点 */
+    EVENT                     *inEventPtr, *outEventPtr;         /* 输入输出事件节点指针 */
+    STYLE                     *inStyleArr, *outStyleArr;         /* 输入输出样式数组 */
+    df_danmaku_t              *newDanmakuNode, *tailDanmakuNode; /* 弹幕新节点 弹幕尾节点 */
+    df_special_danmaku_part_t *newSpcialPart;                    /* 新建弹幕特殊部分结构体 */
 
     inEventPtr = inputSub->events;
     inStyleArr = inputSub->styles;
@@ -1205,35 +1205,39 @@ int writeAss(const char *const fileName, df_danmaku_t *danmakuHead, const df_con
 
         /* 样式设定 */
         fprintf(fptr, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
-                "R2L", config.text.fontname, config.text.font_size, primaryColour, "&H00FFFFFF", outlineColour, "&H1E6A5149",
-                bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, config.text.outline, config.text.shadow, 8, 0, 0, 0, 1);
+                "R2L", config.text.fontname, config.text.font_size, primaryColour, "&H00FFFFFF", outlineColour,
+                "&H1E6A5149", bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, config.text.outline, config.text.shadow, 8,
+                0, 0, 0, 1);
 
         fprintf(fptr, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
-                "L2R", config.text.fontname, config.text.font_size, primaryColour, "&H00FFFFFF", outlineColour, "&H1E6A5149",
-                bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, config.text.outline, config.text.shadow, 8, 0, 0, 0, 1);
+                "L2R", config.text.fontname, config.text.font_size, primaryColour, "&H00FFFFFF", outlineColour,
+                "&H1E6A5149", bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, config.text.outline, config.text.shadow, 8,
+                0, 0, 0, 1);
 
         fprintf(fptr, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
-                "TOP", config.text.fontname, config.text.font_size, primaryColour, "&H00FFFFFF", outlineColour, "&H1E6A5149",
-                bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, config.text.outline, config.text.shadow, 8, 0, 0, 0, 1);
+                "TOP", config.text.fontname, config.text.font_size, primaryColour, "&H00FFFFFF", outlineColour,
+                "&H1E6A5149", bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, config.text.outline, config.text.shadow, 8,
+                0, 0, 0, 1);
 
         fprintf(fptr, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
-                "BTM", config.text.fontname, config.text.font_size, primaryColour, "&H00FFFFFF", outlineColour, "&H1E6A5149",
-                bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, config.text.outline, config.text.shadow, 8, 0, 0, 0, 1);
+                "BTM", config.text.fontname, config.text.font_size, primaryColour, "&H00FFFFFF", outlineColour,
+                "&H1E6A5149", bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, config.text.outline, config.text.shadow, 8,
+                0, 0, 0, 1);
 
         fprintf(fptr, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d", "SP",
-                config.text.fontname, config.text.font_size, "&H00FFFFFF", "&H00FFFFFF", outlineColour, "&H1E6A5149", bold, 0, 0,
-                0, 100.00, 100.00, 0.00, 0.00, 1, config.text.outline, config.text.shadow, 7, 0, 0, 0, 1);
+                config.text.fontname, config.text.font_size, "&H00FFFFFF", "&H00FFFFFF", outlineColour, "&H1E6A5149",
+                bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, config.text.outline, config.text.shadow, 7, 0, 0, 0, 1);
         float msgboxOutline = config.text.outline * config.msgbox.font_size / config.text.font_size;
         float msgboxShadow  = config.text.shadow * config.msgbox.font_size / config.text.font_size;
         fprintf(fptr, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
-                "MSG", config.text.fontname, config.msgbox.font_size, "&H00FFFFFF", "&H00FFFFFF", outlineColour, "&H1E6A5149", bold,
-                0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, msgboxOutline, msgboxShadow, 7, 0, 0, 0, 1);
+                "MSG", config.text.fontname, config.msgbox.font_size, "&H00FFFFFF", "&H00FFFFFF", outlineColour,
+                "&H1E6A5149", bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, msgboxOutline, msgboxShadow, 7, 0, 0, 0, 1);
 
         if (config.screen.statistics_mode != 0)
         {
             fprintf(fptr, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
-                    "danmakuFactory_stat", config.text.fontname, config.text.font_size, "&H35FFFFFF", "&H35FFFFFF", "&H35000000",
-                    "&H356A5149", 0, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 0, 0.0, 0.0, 5, 0, 0, 0, 1);
+                    "danmakuFactory_stat", config.text.fontname, config.text.font_size, "&H35FFFFFF", "&H35FFFFFF",
+                    "&H35000000", "&H356A5149", 0, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 0, 0.0, 0.0, 5, 0, 0, 0, 1);
         }
 
         if (subPart != NULL)
@@ -1263,10 +1267,9 @@ int writeAss(const char *const fileName, df_danmaku_t *danmakuHead, const df_con
     }
 
     returnValue *= 10;
-    returnValue += writeAssStatPart(fptr, danmakuHead, config.screen.statistics_mode,
-                                    GET_ASS_MS_FLT(config.danmaku.scroll_duration),
-                                    GET_ASS_MS_FLT(config.danmaku.fixed_duration), config.danmaku.density,
-                                    config.danmaku.block_mode);
+    returnValue += writeAssStatPart(
+        fptr, danmakuHead, config.screen.statistics_mode, GET_ASS_MS_FLT(config.danmaku.scroll_duration),
+        GET_ASS_MS_FLT(config.danmaku.fixed_duration), config.danmaku.density, config.danmaku.block_mode);
 
     // TODO:添加函数writeAssSubPart()
 
@@ -1375,8 +1378,8 @@ static inline DLGLIST *getNewDlgListPtr(const int startPosX, const int startPosY
     return newDlgListPtr;
 }
 
-static inline void amendMessage(MSGLIST *msgListPtr, const int msgAnimationTime, df_coord_t *resolution, df_coord_t *pos,
-                                df_coord_t *size, char *msgBoxClip)
+static inline void amendMessage(MSGLIST *msgListPtr, const int msgAnimationTime, df_coord_t *resolution,
+                                df_coord_t *pos, df_coord_t *size, char *msgBoxClip)
 {
     DLGLIST *dlgListPtr, *dlgListNextPtr, *newDlgListPtr;
     int      thisMsgDeltaTime, nextMsgDeltaTime;
@@ -1886,7 +1889,7 @@ int writeAssDanmakuPart(FILE *opF, df_danmaku_t *head, df_config_t config, df_st
     const int   density        = config.danmaku.density;
     const int   line_spacing   = config.text.line_spacing;
     const int   blockMode      = config.danmaku.block_mode;
-    const bool  keep_blocked  = config.danmaku.keep_blocked;
+    const bool  keep_blocked   = config.danmaku.keep_blocked;
     const bool  show           = config.msgbox.show;
     const bool  showUserName   = config.danmaku.show_username;
     df_coord_t  size           = config.msgbox.size;
@@ -2101,9 +2104,8 @@ int writeAssDanmakuPart(FILE *opF, df_danmaku_t *head, df_config_t config, df_st
             textLen = df_text_measure_width(text_ctx, now->text, fontName, effective_size);
             if (textLen >= 0 && showUserName == true && now->user != NULL)
             {
-                int userLen = df_text_measure_width(text_ctx, now->user->name, fontName, effective_size);
-                int separatorLen = df_text_measure_width(text_ctx, IS_R2L(now) ? ": " : ":", fontName,
-                                                         effective_size);
+                int userLen      = df_text_measure_width(text_ctx, now->user->name, fontName, effective_size);
+                int separatorLen = df_text_measure_width(text_ctx, IS_R2L(now) ? ": " : ":", fontName, effective_size);
                 if (userLen < 0 || separatorLen < 0)
                 {
                     textLen = -1;
@@ -2995,8 +2997,8 @@ int writeAssStatPart(FILE *opF, df_danmaku_t *head, int mode, const int rollTime
                      "}DanmakuFactory by hkm");
 
         /* 显示弹幕类型表头，如果被屏蔽就使用划线 */
-        if (!(blockMode & DF_BLOCK_MODE_R2L) || !(blockMode & DF_BLOCK_MODE_L2R) || !(blockMode & DF_BLOCK_MODE_TOP) || !(blockMode & DF_BLOCK_MODE_BOTTOM) ||
-            !(blockMode & DF_BLOCK_MODE_SPECIAL))
+        if (!(blockMode & DF_BLOCK_MODE_R2L) || !(blockMode & DF_BLOCK_MODE_L2R) || !(blockMode & DF_BLOCK_MODE_TOP) ||
+            !(blockMode & DF_BLOCK_MODE_BOTTOM) || !(blockMode & DF_BLOCK_MODE_SPECIAL))
         {
             printStatDataStr(opF, 0, endTime, 62, 65, NULL, "ALL");
         }

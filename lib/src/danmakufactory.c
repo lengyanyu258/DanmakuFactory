@@ -192,8 +192,8 @@ df_error_code_t df_load_config_json(df_context_t *ctx, const char *json_str)
     }
 
     // 临时副本共享旧列表；解析器只在新列表完整后提交新指针。
-    df_config_t temp_config = ctx->runtime_info.config;
-    char **old_block_list = ctx->runtime_info.config.danmaku.block_list;
+    df_config_t temp_config    = ctx->runtime_info.config;
+    char      **old_block_list = ctx->runtime_info.config.danmaku.block_list;
 
     df_error_code_t code = df_parse_config_json_val(config_val, &temp_config);
     if (code == DF_SUCCESS)
@@ -512,8 +512,8 @@ df_error_code_t df_set_fontname(df_context_t *ctx, const char *fontname)
     {
         return DF_SET_ERROR(DF_ERROR_INVALID_PARAMETER, "fontname is NULL");
     }
-    return str_copy_ns(ctx->runtime_info.config.text.fontname, sizeof(ctx->runtime_info.config.text.fontname),
-                       fontname, strlen(fontname));
+    return str_copy_ns(ctx->runtime_info.config.text.fontname, sizeof(ctx->runtime_info.config.text.fontname), fontname,
+                       strlen(fontname));
 }
 
 df_error_code_t df_set_font_size(df_context_t *ctx, int size)

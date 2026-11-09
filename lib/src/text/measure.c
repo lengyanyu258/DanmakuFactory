@@ -36,35 +36,35 @@
  * 精确实现：FreeType + HarfBuzz（+ Fontconfig 可选）
  *============================================================================*/
 
-#include <ft2build.h>
-#include FT_FREETYPE_H
-#include <hb-ft.h>
-#include <hb.h>
+    #include <ft2build.h>
+    #include FT_FREETYPE_H
+    #include <hb-ft.h>
+    #include <hb.h>
 
-#ifdef DF_HAS_FONTCONFIG
-#include <fontconfig/fontconfig.h>
-#endif
+    #ifdef DF_HAS_FONTCONFIG
+        #include <fontconfig/fontconfig.h>
+    #endif
 
-#define FONT_CACHE_SIZE 16
-#define FONT_NAME_MAX   128
+    #define FONT_CACHE_SIZE 16
+    #define FONT_NAME_MAX   128
 
 /* 字体缓存条目 */
 typedef struct font_cache_entry_s
 {
-    char        name[FONT_NAME_MAX]; /* 字体族名 */
-    int         pixel_size;          /* 像素字号 */
-    FT_Face     face;                /* FreeType 字体面 */
-    hb_font_t  *hb_font;             /* HarfBuzz 字体对象 */
-    unsigned    access_tick;         /* 最近访问时间戳（LRU 用） */
+    char       name[FONT_NAME_MAX]; /* 字体族名 */
+    int        pixel_size;          /* 像素字号 */
+    FT_Face    face;                /* FreeType 字体面 */
+    hb_font_t *hb_font;             /* HarfBuzz 字体对象 */
+    unsigned   access_tick;         /* 最近访问时间戳（LRU 用） */
 } font_cache_entry_t;
 
 /* 文本度量上下文 */
 struct df_text_context_s
 {
-    FT_Library         ft_lib;
-#ifdef DF_HAS_FONTCONFIG
-    FcConfig          *fc_config;
-#endif
+    FT_Library ft_lib;
+    #ifdef DF_HAS_FONTCONFIG
+    FcConfig *fc_config;
+    #endif
     hb_buffer_t       *hb_buf;
     font_cache_entry_t cache[FONT_CACHE_SIZE];
     int                cache_count;
@@ -76,7 +76,7 @@ struct df_text_context_s
  * 字体路径解析
  *============================================================================*/
 
-#ifdef DF_HAS_FONTCONFIG
+    #ifdef DF_HAS_FONTCONFIG
 
 /*---------------------------------------------------------------------------
  * Fontconfig 路径：通过字体族名匹配系统字体文件
@@ -152,7 +152,7 @@ static FcConfig *init_fontconfig(void)
         return NULL;
     }
 
-#ifdef _WIN32
+        #ifdef _WIN32
     {
         const char *windir = getenv("WINDIR");
         char        font_dir[512];
@@ -166,7 +166,7 @@ static FcConfig *init_fontconfig(void)
         }
         FcConfigAppFontAddDir(config, (const FcChar8 *)font_dir);
     }
-#else
+        #else
     FcConfigAppFontAddDir(config, (const FcChar8 *)"/usr/share/fonts");
     FcConfigAppFontAddDir(config, (const FcChar8 *)"/usr/local/share/fonts");
     {
@@ -178,7 +178,7 @@ static FcConfig *init_fontconfig(void)
             FcConfigAppFontAddDir(config, (const FcChar8 *)user_font_dir);
         }
     }
-#endif
+        #endif
 
     if (!FcConfigBuildFonts(config))
     {
@@ -197,15 +197,15 @@ int df_text_register_font(const char *font_name, const char *font_path)
     return 0;
 }
 
-#else /* !DF_HAS_FONTCONFIG */
+    #else /* !DF_HAS_FONTCONFIG */
 
-/*---------------------------------------------------------------------------
- * 字体注册表路径（WASM / 无 Fontconfig 环境）
- *
- * 调用方通过 df_text_register_font() 将字体族名映射到 VFS 文件路径。
- *---------------------------------------------------------------------------*/
-#define FONT_REGISTRY_SIZE 32
-#define FONT_PATH_MAX      512
+        /*---------------------------------------------------------------------------
+         * 字体注册表路径（WASM / 无 Fontconfig 环境）
+         *
+         * 调用方通过 df_text_register_font() 将字体族名映射到 VFS 文件路径。
+         *---------------------------------------------------------------------------*/
+        #define FONT_REGISTRY_SIZE 32
+        #define FONT_PATH_MAX      512
 
 typedef struct font_registry_entry_s
 {
@@ -268,7 +268,7 @@ static const char *resolve_font_path_from_registry(const char *font_name)
     return NULL;
 }
 
-#endif /* DF_HAS_FONTCONFIG */
+    #endif /* DF_HAS_FONTCONFIG */
 
 /*============================================================================
  * 字体缓存与加载
@@ -324,20 +324,20 @@ static font_cache_entry_t *get_or_load_font(df_text_context_t *ctx, const char *
     entry->pixel_size              = pixel_size;
 
     /* 解析字体文件路径 */
-    const char *font_path = NULL;
+    const char *font_path  = NULL;
     char       *alloc_path = NULL; /* Fontconfig 路径需要 free */
     int         face_index = 0;
 
-#ifdef DF_HAS_FONTCONFIG
+    #ifdef DF_HAS_FONTCONFIG
     alloc_path = resolve_font_path(ctx->fc_config, font_name, &face_index);
     if (alloc_path == NULL)
     {
         alloc_path = resolve_font_path(ctx->fc_config, "sans-serif", &face_index);
     }
     font_path = alloc_path;
-#else
+    #else
     font_path = resolve_font_path_from_registry(font_name);
-#endif
+    #endif
 
     if (font_path == NULL)
     {
@@ -397,7 +397,7 @@ df_text_context_t *df_text_create(void)
         return ctx;
     }
 
-#ifdef DF_HAS_FONTCONFIG
+    #ifdef DF_HAS_FONTCONFIG
     /* 初始化 Fontconfig（跨平台） */
     ctx->fc_config = init_fontconfig();
     if (ctx->fc_config == NULL)
@@ -406,16 +406,16 @@ df_text_context_t *df_text_create(void)
         ctx->ft_lib = NULL;
         return ctx;
     }
-#endif
+    #endif
 
     /* 创建 HarfBuzz 缓冲区（全局复用） */
     ctx->hb_buf = hb_buffer_create();
     if (ctx->hb_buf == NULL || !hb_buffer_allocation_successful(ctx->hb_buf))
     {
-#ifdef DF_HAS_FONTCONFIG
+    #ifdef DF_HAS_FONTCONFIG
         FcConfigDestroy(ctx->fc_config);
         ctx->fc_config = NULL;
-#endif
+    #endif
         FT_Done_FreeType(ctx->ft_lib);
         ctx->ft_lib = NULL;
         return ctx;
@@ -449,12 +449,12 @@ void df_text_destroy(df_text_context_t *ctx)
     {
         hb_buffer_destroy(ctx->hb_buf);
     }
-#ifdef DF_HAS_FONTCONFIG
+    #ifdef DF_HAS_FONTCONFIG
     if (ctx->fc_config != NULL)
     {
         FcConfigDestroy(ctx->fc_config);
     }
-#endif
+    #endif
     if (ctx->ft_lib != NULL)
     {
         FT_Done_FreeType(ctx->ft_lib);
@@ -494,8 +494,8 @@ int df_text_measure_width(df_text_context_t *ctx, const char *text, const char *
         return -1;
     }
 
-    unsigned int info_count = 0;
-    hb_glyph_info_t *infos = hb_buffer_get_glyph_infos(buf, &info_count);
+    unsigned int     info_count = 0;
+    hb_glyph_info_t *infos      = hb_buffer_get_glyph_infos(buf, &info_count);
     for (unsigned int i = 0; i < info_count; i++)
     {
         if (infos[i].codepoint == 0)
@@ -505,8 +505,8 @@ int df_text_measure_width(df_text_context_t *ctx, const char *text, const char *
     }
 
     /* 累加字形 advance（26.6 定点 → 像素） */
-    unsigned int        glyph_count = 0;
-    hb_glyph_position_t *positions  = hb_buffer_get_glyph_positions(buf, &glyph_count);
+    unsigned int         glyph_count = 0;
+    hb_glyph_position_t *positions   = hb_buffer_get_glyph_positions(buf, &glyph_count);
 
     int64_t total_advance = 0;
     for (unsigned int i = 0; i < glyph_count; i++)
@@ -533,7 +533,7 @@ bool df_text_is_available(const df_text_context_t *ctx)
     return ctx->available;
 }
 
-#else /* !DF_HAS_TEXT_MEASURE */
+#else  /* !DF_HAS_TEXT_MEASURE */
 
 /*============================================================================
  * 降级实现：底层库不可用时返回空壳上下文

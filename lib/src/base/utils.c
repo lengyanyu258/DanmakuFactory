@@ -143,8 +143,7 @@ df_filetype_t get_filetype(const char *file_path)
 
     uint64_t filetype = DF_FILETYPE_NONE;
 
-    if (get_flag_type(extension + 1, filetype_mappings, ARRAY_SIZE(filetype_mappings), &filetype) !=
-        DF_SUCCESS)
+    if (get_flag_type(extension + 1, filetype_mappings, ARRAY_SIZE(filetype_mappings), &filetype) != DF_SUCCESS)
     {
         return DF_FILETYPE_UNKNOWN;
     }
