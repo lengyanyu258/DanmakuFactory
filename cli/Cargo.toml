@@ -1,0 +1,20 @@
+[package]
+name = "danmaku-factory"
+version = "2.0.0"
+edition = "2021"
+description = "DanmakuFactory CLI - 弹幕转换工具命令行界面"
+license = "MIT"
+
+[[bin]]
+name = "DanmakuFactory"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+danmakufactory-sys = { path = "../bindings/rust" }
+
+[profile.release]
+lto = true
+strip = true

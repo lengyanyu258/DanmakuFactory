@@ -29,6 +29,7 @@
 #include <string.h>
 
 #include "base/string.h"
+#include "base/utils.h"
 
 /*
  * 读取用户自定义模板文件
@@ -36,7 +37,7 @@
  * 返回值：成功返回0/失败返回1
  */
 int readTemplateFile(const char *const ipFile, const char *const templateFile, df_danmaku_t **danmakuHead,
-                     const char *mode, const float timeShift, STATUS *const status, char *errMsg, int msgLen)
+                     const char *mode, const float timeShift, df_status_t *const status, char *errMsg, int msgLen)
 {
     FILE         *tempfptr;
     df_danmaku_t *last = NULL;
@@ -51,7 +52,7 @@ int readTemplateFile(const char *const ipFile, const char *const templateFile, d
     }
 
     /* 打开文件 */
-    if ((tempfptr = fopen(templateFile, "r")) == NULL)
+    if ((tempfptr = df_fopen(templateFile, "r")) == NULL)
     {
         return 1;
     }
@@ -560,7 +561,7 @@ int readTemplateFile(const char *const ipFile, const char *const templateFile, d
     char  *startPtr;
     size_t readSize = 0;
 
-    if ((ipfptr = fopen(ipFile, "r")) == NULL)
+    if ((ipfptr = df_fopen(ipFile, "r")) == NULL)
     {
         return 3;
     }

@@ -27,8 +27,9 @@
 
 #include <stdio.h>
 
-#include "base/status.h"
-#include "config/file.h"
+#include "base/define.h"
+#include "config/define.h"
+#include "core/process.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -197,16 +198,16 @@ typedef struct DialogueList          DLGLIST;
 
 /* ass */
 extern int readAss(const char *const fileName, df_danmaku_t **danmakuHead, const char *mode, ASSFILE *assSub,
-                   const float timeShift, STATUS *const status);
+                   const float timeShift, df_status_t *const status);
 extern int writeAss(const char *const fileName, df_danmaku_t *danmakuHead, const df_config_t config,
-                    const ASSFILE *const subPart, STATUS *const status);
+                    const ASSFILE *const subPart, df_status_t *const status);
 
 /* 不常用的ass操作函数 */
 extern int  readAssFile(ASSFILE *assFile, const char *const fileName);
 extern int  assFileToDanmaku(ASSFILE *inputSub, df_danmaku_t **danmakuHead, const char *mode, ASSFILE *outputSub,
-                             const float timeShift, STATUS *const status);
+                             const float timeShift, df_status_t *const status);
 extern void writeAssStylesPart(FILE *opF, const int numOfStyles, STYLE *const styles);
-extern int  writeAssDanmakuPart(FILE *opF, df_danmaku_t *head, df_config_t config, STATUS *const status);
+extern int  writeAssDanmakuPart(FILE *opF, df_danmaku_t *head, df_config_t config, df_status_t *const status);
 extern int  writeAssStatPart(FILE *opF, df_danmaku_t *head, int mode, const int rollTime, const int holdTime,
                              const int density, const int blockMode);
 

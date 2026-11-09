@@ -5,14 +5,22 @@ on:
   pull_request:
     branches: [master]
     paths:
-      - "include/**"
-      - "src/**"
+      - "lib/**"
+      - "cli/**"
+      - "bindings/rust/**"
+      - "scripts/**"
+      - "xmake.lua"
+      - ".github/workflows/build-release.yml"
     types: [opened, reopened, ready_for_review]
   push:
     branches: [master]
     paths:
-      - "include/**"
-      - "src/**"
+      - "lib/**"
+      - "cli/**"
+      - "bindings/rust/**"
+      - "scripts/**"
+      - "xmake.lua"
+      - ".github/workflows/build-release.yml"
   workflow_dispatch:
 
 concurrency:
@@ -65,8 +73,13 @@ jobs:
           build-cache: true
           package-cache: true
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Build & Package Project
-        run: xmake package --yes --verbose
+        run: |
+          xmake f -m release -y
+          xmake package-cli
 
       - name: Upload Artifact
         if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}

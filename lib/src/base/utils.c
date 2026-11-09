@@ -29,13 +29,70 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "base/define.h"
 #include "base/error.h"
 #include "danmakufactory.h"
+
+#ifdef _WIN32
+    #define WIN32_LEAN_AND_MEAN
+    #include <windows.h>
+#endif
 
 // 定义工程根目录的相对路径前缀
 #define PROJECT_ROOT_DIR "DanmakuFactory"
 
 #define INITIAL_CAPACITY 16
+
+/**
+ * @brief 可移植的 UTF-8 路径文件打开（Windows 下 fopen 按本地代码页解析路径，需转宽字符）
+ * @param path UTF-8 编码的文件路径
+ * @param mode 打开模式（如 "r"、"w"）
+ * @return 文件指针，失败返回 NULL
+ */
+FILE *df_fopen(const char *path, const char *mode)
+{
+#ifdef _WIN32
+    wchar_t wmode[8];
+    if (MultiByteToWideChar(CP_UTF8, 0, mode, -1, wmode, ARRAY_SIZE(wmode)) == 0)
+    {
+        return NULL;
+    }
+
+    int wpath_len = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0);
+    if (wpath_len <= 0)
+    {
+        return NULL;
+    }
+    wchar_t *wpath = malloc(wpath_len * sizeof(wchar_t));
+    if (!wpath)
+    {
+        return NULL;
+    }
+    MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, wpath_len);
+
+    FILE *fp = _wfopen(wpath, wmode);
+    free(wpath);
+    return fp;
+#else
+    return fopen(path, mode);
+#endif
+}
+
+/**
+ * @brief 可移植的字符串复制（避免依赖平台特定的 _strdup/strdup）
+ * @param source 源字符串
+ * @return 新分配的字符串副本，失败返回 NULL
+ */
+char *df_strdup(const char *source)
+{
+    size_t size        = strlen(source) + 1;
+    char  *destination = malloc(size);
+    if (destination != NULL)
+    {
+        memcpy(destination, source, size);
+    }
+    return destination;
+}
 
 /**
  * @brief 根据文件类型获取对应的文件扩展名
@@ -59,6 +116,13 @@ const char *get_extension(df_filetype_t filetype)
     }
 }
 
+/* 文件格式名称到类型的映射表（大小写不敏感匹配） */
+static const flag_mapping_t filetype_mappings[] = {
+    {"ASS", DF_FILETYPE_ASS},
+    {"JSON", DF_FILETYPE_JSON},
+    {"XML", DF_FILETYPE_XML},
+};
+
 /**
  * @brief 根据文件扩展名获取对应的文件类型
  * @param file_path 文件路径
@@ -77,22 +141,44 @@ df_filetype_t get_filetype(const char *file_path)
         return DF_FILETYPE_UNKNOWN;
     }
 
-    static const flag_mapping_t filetype_mappings[] = {
-        {"ASS", DF_FILETYPE_ASS},
-        {"JSON", DF_FILETYPE_JSON},
-        {"XML", DF_FILETYPE_XML},
-    };
+    uint64_t filetype = DF_FILETYPE_NONE;
 
-    df_filetype_t filetype = DF_FILETYPE_NONE;
-
-    if (get_flag_type(extension + 1, filetype_mappings, ARRAY_SIZE(filetype_mappings), (uint64_t *)&filetype) !=
+    if (get_flag_type(extension + 1, filetype_mappings, ARRAY_SIZE(filetype_mappings), &filetype) !=
         DF_SUCCESS)
     {
         return DF_FILETYPE_UNKNOWN;
     }
 
-    return filetype;
+    return (df_filetype_t)filetype;
 };
+
+/**
+ * @brief 根据格式名称直接获取文件类型（对应 df_fileinfo_t 的显式 type 设定）
+ * @param name 格式名称，如 "xml"、"json"、"ass"（大小写不敏感，可带或不带前导点）
+ * @return 对应的文件类型，无法识别时返回 DF_FILETYPE_UNKNOWN
+ */
+df_filetype_t get_filetype_by_name(const char *name)
+{
+    if (!name)
+    {
+        return DF_FILETYPE_UNKNOWN;
+    }
+
+    // 容忍 ".ass" 这类带前导点的写法
+    if (name[0] == '.')
+    {
+        name++;
+    }
+
+    uint64_t filetype = DF_FILETYPE_NONE;
+
+    if (get_flag_type(name, filetype_mappings, ARRAY_SIZE(filetype_mappings), &filetype) != DF_SUCCESS)
+    {
+        return DF_FILETYPE_UNKNOWN;
+    }
+
+    return (df_filetype_t)filetype;
+}
 
 /**
  * @brief 忽略大小写比较两个字符串
@@ -299,7 +385,7 @@ df_error_code_t read_file_lines(const char *filename, char ***content_lines)
         return DF_SET_ERROR(DF_ERROR_INVALID_PARAMETER, "Invalid parameter!");
     }
 
-    FILE *fp = fopen(filename, "r");
+    FILE *fp = df_fopen(filename, "r");
     if (fp == NULL)
     {
         return DF_SET_ERROR(DF_ERROR_INVALID_PARAMETER, "Open block list file `%s` failed!", filename);
@@ -348,7 +434,7 @@ df_error_code_t read_file_lines(const char *filename, char ***content_lines)
         }
 
         // 复制行内容
-        lines[count] = _strdup(buf);
+        lines[count] = df_strdup(buf);
         if (!lines[count])
         {
             DF_SET_ERROR(DF_ERROR_INTERNAL_OUT_OF_MEMORY, "String duplication failed");
@@ -565,10 +651,15 @@ df_error_code_t get_flag_type(const char *flag_str, const flag_mapping_t *flag_m
         return DF_SET_ERROR(DF_SUCCESS, "Empty flag string");
     }
 
-    // 将输入字符串转换为大写以进行比较
-    char flag_upper_str[flag_str_len + 1];
+    // 将输入字符串转换为大写以进行比较（变长数组为 MSVC 不支持的 VLA，改用堆分配）
+    char *flag_upper_str = malloc(flag_str_len + 1);
+    if (!flag_upper_str)
+    {
+        return DF_SET_ERROR(DF_ERROR_INTERNAL_OUT_OF_MEMORY, "Memory allocation failed");
+    }
     if (str_to_upper_n(flag_upper_str, flag_str, flag_str_len) != DF_SUCCESS)
     {
+        free(flag_upper_str);
         return df_get_last_error_code();
     }
 
@@ -583,6 +674,8 @@ df_error_code_t get_flag_type(const char *flag_str, const flag_mapping_t *flag_m
             break;
         }
     }
+
+    free(flag_upper_str);
 
     // 如果没有找到匹配项，返回错误
     if (i >= mappings_num)

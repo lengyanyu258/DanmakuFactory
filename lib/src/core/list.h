@@ -37,7 +37,8 @@ extern "C"
 #endif
 
 extern int  sortList(df_danmaku_t **listHead, df_status_t *const status);
-extern void blockByType(df_danmaku_t *const danmakuHead, const int mode, char **keyStrings, bool block_list_regex_enabled);
+extern df_error_code_t blockByType(df_danmaku_t *const danmakuHead, const int mode, char **keyStrings,
+                                   bool block_list_regex_enabled);
 extern void freeList(df_danmaku_t *listHead);
 extern void normFontSize(df_danmaku_t *const danmakuHead, const df_config_t config);
 

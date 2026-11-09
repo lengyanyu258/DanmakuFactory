@@ -59,7 +59,8 @@ typedef struct
     #error "No TLS support!"
 #endif
 
-static TLS df_thread_error_t df_tls_error = {0};
+// 线程局部错误状态（定义在 error.c，全库共享同一份实例）
+extern TLS df_thread_error_t df_tls_error;
 
 // 内部错误设置函数
 df_error_code_t df_set_error_impl(df_error_code_t code, const char *file, const char *function, size_t line,

@@ -3,8 +3,14 @@
 ## 用法
 
 ```powershell
-DanmakuFactory -o [输出文件格式] <输出文件名> -i [输入文件1模板] 输出文件1文件名  [输入文件2模板] 输出文件2文件名  ... [-t 输入文件1时间偏移 ...] [设定名称 设定值] ...
+DanmakuFactory -o [输出文件格式] <输出文件名> -i [模板] <输入文件1> [-t <时间偏移1>] [-i [模板] <输入文件2> [-t <时间偏移2>]] ... [设定名称 设定值] ...
 ```
+
+> 说明：
+> - `[输出文件格式]` 与 `[模板]` 为可选参数，取值为 `xml`、`json`、`ass`（大小写不敏感），用于显式指定文件格式；缺省时由文件扩展名自动推断。
+> - 每个输入文件用一次 `-i` 指定；`-t` 为**紧邻其前**的输入文件设置时间偏移（秒），可重复使用，未跟 `-t` 的文件偏移为 `0`。
+> - 示例 1：`DanmakuFactory -o outfile.ass -i infile1.xml -i infile2.json -t 5.0 -i infile3.ass -t 7.0`（infile1=0、infile2=5.0、infile3=7.0）
+> - 示例 2：`DanmakuFactory -o outfile.ass -i infile1.xml -t 0.0 -i infile2.json -t 5.0 -i infile3.ass -t 7.0`
 
 ## 设定
 

@@ -1,0 +1,155 @@
+/* DanmakuFactory Web - 样式表 */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: #1a1a2e;
+  color: #eee;
+  min-height: 100vh;
+  padding: 1rem;
+  line-height: 1.5;
+}
+
+.container { max-width: 920px; margin: 0 auto; }
+
+header { text-align: center; margin: 1.5rem 0 1rem; }
+header h1 { font-size: 1.6rem; color: #00d4ff; }
+header .tag {
+  display: inline-block;
+  font-size: 0.7rem;
+  vertical-align: middle;
+  background: #e94560;
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: 6px;
+}
+.subtitle { font-size: 0.8rem; color: #888; margin-top: 0.3rem; }
+
+.card {
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 12px;
+  padding: 1.2rem;
+  margin: 1rem 0;
+}
+.card h2 {
+  font-size: 1rem;
+  color: #00d4ff;
+  margin-bottom: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #00d4ff;
+  color: #000;
+  font-size: 0.75rem;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+.hint { font-size: 0.78rem; color: #888; margin: 0.3rem 0; }
+
+.row { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+.field { flex: 1; min-width: 160px; }
+
+label {
+  display: block;
+  font-size: 0.8rem;
+  color: #aaa;
+  margin: 0.5rem 0 0.3rem;
+}
+
+input[type="text"], input[type="number"], select, textarea {
+  width: 100%;
+  background: #0f3460;
+  border: 1px solid #1a4080;
+  color: #eee;
+  border-radius: 6px;
+  padding: 0.6rem;
+  font-size: 0.85rem;
+}
+input[type="file"] {
+  width: 100%;
+  font-size: 0.8rem;
+  color: #aaa;
+}
+textarea {
+  min-height: 130px;
+  resize: vertical;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+
+.btn {
+  border: none;
+  border-radius: 6px;
+  padding: 0.7rem 1.6rem;
+  font-size: 0.9rem;
+  font-weight: bold;
+  cursor: pointer;
+  margin: 0.5rem 0.4rem 0.5rem 0;
+  transition: background 0.15s;
+}
+.btn.primary { background: #00d4ff; color: #000; }
+.btn.primary:hover { background: #00b8e6; }
+.btn.secondary { background: #2a3f6f; color: #cfe8ff; }
+.btn.secondary:hover { background: #35508c; }
+.btn:disabled { background: #444; color: #888; cursor: not-allowed; }
+
+.badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: normal;
+}
+.badge.precise { background: #1b5e20; color: #a5d6a7; }
+.badge.fallback { background: #4a3000; color: #ffcc02; }
+
+.status {
+  font-size: 0.8rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 6px;
+  margin: 0.6rem 0;
+}
+.status.ok { background: #0a3d0a; color: #66bb6a; }
+.status.err { background: #3d0a0a; color: #ef5350; }
+.status.info { background: #0a1e3d; color: #64b5f6; }
+
+#output {
+  background: #0d1b33;
+  border: 1px solid #1a4080;
+  border-radius: 6px;
+  padding: 0.8rem;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 320px;
+  overflow-y: auto;
+  color: #b8c7e0;
+}
+
+footer {
+  text-align: center;
+  font-size: 0.75rem;
+  color: #666;
+  margin: 1.5rem 0 1rem;
+}
+footer a { color: #00d4ff; text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+
+/* 移动端适配 */
+@media (max-width: 600px) {
+  body { padding: 0.5rem; }
+  .row { flex-direction: column; gap: 0.4rem; }
+  .field { min-width: 100%; }
+  .btn { width: 100%; margin-right: 0; }
+}

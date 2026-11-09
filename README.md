@@ -18,7 +18,7 @@ DanmakuFactory 是一款弹幕文件转换工具，支持弹幕姬的礼物读�
 
 ### 开发
 
-需要提前安装 `git`, `xmake`
+需要提前安装 `git`、`xmake` 和 Rust 工具链（`cargo`）。C 核心库的依赖由 xmake 管理。
 
 1. clone 仓库到本地(注意当前目录下不要有相同名字的文件夹)
 
@@ -32,13 +32,18 @@ git clone --depth=1 https://github.com/hihkm/DanmakuFactory.git
 cd DanmakuFactory
 ```
 
-3. 编译，可执行文件为 DanmakuFactory
+3. 构建 Rust CLI（自动构建 C 核心库）
 
 ```shell
-xmake build -y -v
+xmake f -m release -y
+xmake cli
 ```
 
-4. 生成 CMakeLists.txt
+CLI 产物位于 `cli/target/release/`，可通过 `xmake run-cli -- ...` 运行。
+仅构建 C 动态库使用 `xmake build lib-shared`；Slint GUI 使用 `xmake gui`，产物位于 `gui/slint/target/release/`。
+发布 CLI 包使用 `xmake package-cli`。WASM 使用 `xmake f -p wasm -a wasm32 -m release -y` 和 `xmake build lib-wasm`，然后 `xmake deploy-web` 将产物复制到网页目录。
+
+4. 生成 CMakeLists.txt（C 核心库）
 
 ```shell
 xmake project -k cmake
@@ -93,7 +98,7 @@ xmake project -k cmake
 - 支持控制同屏弹幕的密度，也可以直接让弹幕不重叠
 - 支持特殊弹幕的转换
 - 统计模式，显示统计弹幕数量表格以及弹幕分布直方图
-- 纯 C 代码，完全使用标准库，强大的可移植性
+- C 核心库提供句柄和 JSON API，支持多语言绑定、Rust CLI、Slint GUI 与 WASM 网页
 
 ## 命令行展示
 

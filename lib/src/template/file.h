@@ -25,8 +25,7 @@
 #define DF_TEMPLATE_FILE_H_
 
 #include "base/define.h"
-#include "base/process.h"
-#include "base/status.h"
+#include "core/process.h"
 
 #ifdef __cplusplus
 extern "C"

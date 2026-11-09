@@ -1,4 +1,4 @@
-function package_release(target)
+function package_release(target, runtime_files)
     -- 创建临时工作目录
     local tmp_dir = path.join(os.tmpdir(), "danmaku_package")
     os.mkdir(tmp_dir)
@@ -6,6 +6,9 @@ function package_release(target)
 
     -- 复制可执行文件
     os.cp(target:targetfile(), tmp_dir)
+    for _, file in ipairs(runtime_files or {}) do
+        os.cp(file, tmp_dir)
+    end
 
     -- 复制文档文件
     local docs_dir = path.join(os.projectdir(), "docs")
@@ -42,6 +45,48 @@ function package_release(target)
     os.rm(tmp_dir)
 
     print("Package created: %s", package_path)
+end
+
+-- Rust CLI 替代原 xmake binary target 后，需要独立定位 Cargo 产物。
+function package_release_cli()
+    import("core.project.config")
+    import("core.project.project")
+    config.load()
+    local use_musl = is_plat("linux") and config.get("musl")
+    local cargo_dir = os.getenv("CARGO_TARGET_DIR") or path.join(os.projectdir(), "cli", "target")
+    cargo_dir = path.absolute(cargo_dir)
+    if use_musl then
+        local triples = {x86_64 = "x86_64-unknown-linux-musl", x64 = "x86_64-unknown-linux-musl",
+                         arm64 = "aarch64-unknown-linux-musl", aarch64 = "aarch64-unknown-linux-musl"}
+        local triple = triples[config.arch()]
+        if not triple then
+            raise("Unsupported Rust musl architecture: " .. tostring(config.arch()))
+        end
+        cargo_dir = path.join(cargo_dir, triple)
+    end
+    local binary = path.join(cargo_dir, "release", is_plat("windows") and "DanmakuFactory.exe" or "DanmakuFactory")
+    if not os.isfile(binary) then
+        raise("Rust CLI release binary not found: " .. binary)
+    end
+    local runtime_files = {}
+    if not use_musl then
+        local lib_target = project.target("lib-shared")
+        -- DLL 同时被 build.rs 放到 Cargo 输出目录；包含传递的 Windows DLL。
+        if is_plat("windows") then
+            for _, file in ipairs(os.files(path.join(cargo_dir, "release", "*.dll"))) do
+                table.insert(runtime_files, file)
+            end
+        else
+            local pattern = is_plat("macosx") and "*.dylib" or "*.so*"
+            for _, file in ipairs(os.files(path.join(lib_target:targetdir(), pattern))) do
+                table.insert(runtime_files, file)
+            end
+        end
+    end
+    package_release({
+        targetfile = function () return binary end,
+        basename = function () return "DanmakuFactory" end,
+    }, runtime_files)
 end
 
 return package_release

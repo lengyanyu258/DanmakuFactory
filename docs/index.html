@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="DanmakuFactory Web - 纯浏览器弹幕格式转换工具，无需安装，支持 Bilibili XML/JSON 与 ASS 字幕互转">
+<title>DanmakuFactory Web - 弹幕转换工具</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>DanmakuFactory <span class="tag">Web</span></h1>
+    <p class="subtitle">纯浏览器弹幕格式转换 · 无需安装 · 数据不出本地</p>
+  </header>
+
+  <!-- 字体加载 -->
+  <section class="card">
+    <h2><span class="step">1</span> 字体 <span id="fontBadge" class="badge fallback">估算模式</span></h2>
+    <p class="hint">加载字体后使用字形宽度改善弹幕排布；缺失字形或未加载字体时使用估算。</p>
+    <div class="row">
+      <div class="field">
+        <label for="fontFile">选择字体文件 (.ttf / .otf / .ttc)</label>
+        <input type="file" id="fontFile" accept=".ttf,.otf,.ttc,.woff,.woff2">
+      </div>
+      <div class="field">
+        <label for="fontName">字体族名（与配置 fontname 一致）</label>
+        <input type="text" id="fontName" value="Microsoft YaHei">
+      </div>
+    </div>
+    <button id="btnLocalFonts" class="btn secondary">自动发现系统字体</button>
+    <span class="hint">需要 Chrome 103+ 且 HTTPS 环境</span>
+  </section>
+
+  <!-- 输入 -->
+  <section class="card">
+    <h2><span class="step">2</span> 输入弹幕数据</h2>
+    <div class="row">
+      <div class="field">
+        <label for="inputFormat">输入格式</label>
+        <select id="inputFormat">
+          <option value="xml">Bilibili XML</option>
+          <option value="json">Bilibili JSON</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="outputFormat">输出格式</label>
+        <select id="outputFormat">
+          <option value="ass">ASS 字幕</option>
+          <option value="xml">Bilibili XML</option>
+          <option value="json">Bilibili JSON</option>
+        </select>
+      </div>
+    </div>
+    <label for="inputData">弹幕数据（支持拖入文件）</label>
+    <textarea id="inputData" placeholder="粘贴 XML / JSON 弹幕数据，或将文件拖入此区域..."></textarea>
+    <button id="btnSample" class="btn secondary">载入示例数据</button>
+  </section>
+
+  <!-- 配置 -->
+  <section class="card">
+    <h2><span class="step">3</span> 转换配置</h2>
+    <div class="row">
+      <div class="field">
+        <label for="resolution">分辨率</label>
+        <select id="resolution">
+          <option value="1920,1080">1920 × 1080</option>
+          <option value="1280,720">1280 × 720</option>
+          <option value="2560,1440">2560 × 1440</option>
+          <option value="3840,2160">3840 × 2160</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="fontSize">字号</label>
+        <input type="number" id="fontSize" value="38" min="12" max="72">
+      </div>
+      <div class="field">
+        <label for="scrollDuration">滚动时长 (秒)</label>
+        <input type="number" id="scrollDuration" value="12" min="3" max="30" step="0.5">
+      </div>
+      <div class="field">
+        <label for="fixedDuration">固定时长 (秒)</label>
+        <input type="number" id="fixedDuration" value="5" min="1" max="20" step="0.5">
+      </div>
+    </div>
+  </section>
+
+  <!-- 操作 -->
+  <section class="card">
+    <h2><span class="step">4</span> 执行转换</h2>
+    <div class="actions">
+      <button id="btnConvert" class="btn primary">开始转换</button>
+      <button id="btnDownload" class="btn secondary" disabled>下载结果</button>
+    </div>
+    <div id="status"></div>
+  </section>
+
+  <!-- 输出 -->
+  <section class="card">
+    <h2><span class="step">5</span> 输出结果</h2>
+    <pre id="output">等待转换...</pre>
+  </section>
+
+  <footer>
+    <p>DanmakuFactory Web · 基于 WebAssembly · <a href="https://github.com/hihkm/DanmakuFactory" target="_blank" rel="noopener">GitHub</a></p>
+  </footer>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

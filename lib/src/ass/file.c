@@ -24,12 +24,15 @@
 
 #include "ass/file.h"
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "ass/string_processing.h"
-#include "base/list.h"
 #include "base/string.h"
+#include "base/utils.h"
+#include "core/list.h"
+#include "text/measure.h"
 
 static int   printStatDataStr(FILE *filePtr, const int startTime, const int endTime, const int posX, const int posY,
                               const char *effect, const char *str);
@@ -52,7 +55,7 @@ static int   getEndTime(df_danmaku_t *danmakuPtr, const int rollTime, const int 
  * 十位为函数readAssFile的返回值
  */
 int readAss(const char *const fileName, df_danmaku_t **danmakuHead, const char *mode, ASSFILE *assSub,
-            const float timeShift, STATUS *const status)
+            const float timeShift, df_status_t *const status)
 {
     /* 刷新status */
     if (status != NULL)
@@ -62,14 +65,16 @@ int readAss(const char *const fileName, df_danmaku_t **danmakuHead, const char *
         status->is_done          = false;
     }
 
-    int     returnValue = 0;
-    ASSFILE assDanmaku;
-    returnValue += readAssFile(&assDanmaku, fileName);
+    ASSFILE assDanmaku = {0};
+    int read_code = readAssFile(&assDanmaku, fileName);
+    if (read_code != 0)
+    {
+        return read_code * 10;
+    }
 
-    returnValue *= 10;
-    returnValue += assFileToDanmaku(&assDanmaku, danmakuHead, mode, assSub, timeShift, status);
-
-    return returnValue;
+    int convert_code = assFileToDanmaku(&assDanmaku, danmakuHead, mode, assSub, timeShift, status);
+    freeAssFile(&assDanmaku);
+    return convert_code;
 }
 
 /*
@@ -83,7 +88,7 @@ int readAss(const char *const fileName, df_danmaku_t **danmakuHead, const char *
 int readAssFile(ASSFILE *assFile, const char *const fileName)
 {
     FILE *fptr;
-    if ((fptr = fopen(fileName, "r")) == NULL)
+    if ((fptr = df_fopen(fileName, "r")) == NULL)
     {
         return 1;
     }
@@ -130,6 +135,7 @@ int readAssFile(ASSFILE *assFile, const char *const fileName)
             if ((newNode = (EVENT *)malloc(sizeof(EVENT))) == NULL)
             {
                 freeAssFile(assFile);
+                fclose(fptr);
                 return 2;
             }
 
@@ -148,6 +154,13 @@ int readAssFile(ASSFILE *assFile, const char *const fileName)
             /* 结束时间 */
             strGetLeftPart(temp, &ptr, ',', TEMPBUF_SIZE);
             newNode->end = timeToInt(temp);
+            if (newNode->start < 0 || newNode->end < newNode->start)
+            {
+                free(newNode);
+                freeAssFile(assFile);
+                fclose(fptr);
+                return 5;
+            }
 
             /* 样式 */
             strGetLeftPart(temp, &ptr, ',', TEMPBUF_SIZE);
@@ -181,6 +194,7 @@ int readAssFile(ASSFILE *assFile, const char *const fileName)
             {
                 free(newNode);
                 freeAssFile(assFile);
+                fclose(fptr);
                 return 3;
             }
             strcpy(newNode->text, ptr);
@@ -209,6 +223,7 @@ int readAssFile(ASSFILE *assFile, const char *const fileName)
             if ((newStyle = (STYLE *)realloc(assFile->styles, sizeof(STYLE) * (assFile->stylesNum + 1))) == NULL)
             {
                 freeAssFile(assFile);
+                fclose(fptr);
                 return 4;
             }
 
@@ -361,7 +376,7 @@ int readAssFile(ASSFILE *assFile, const char *const fileName)
  * 1 2 3 4 5 6 内存空间分配失败
  */
 int assFileToDanmaku(ASSFILE *inputSub, df_danmaku_t **danmakuHead, const char *mode, ASSFILE *outputSub,
-                     const float timeShift, STATUS *const status)
+                     const float timeShift, df_status_t *const status)
 {
     int           cnt;
     char          tempStr[ASS_MAX_LINE_LEN];        /* 临时字符串 */
@@ -370,7 +385,7 @@ int assFileToDanmaku(ASSFILE *inputSub, df_danmaku_t **danmakuHead, const char *
     EVENT        *inEventPtr, *outEventPtr;         /* 输入输出事件节点指针 */
     STYLE        *inStyleArr, *outStyleArr;         /* 输入输出样式数组 */
     df_danmaku_t *newDanmakuNode, *tailDanmakuNode; /* 弹幕新节点 弹幕尾节点 */
-    SPPART       *newSpcialPart;                    /* 新建弹幕特殊部分结构体 */
+    df_special_danmaku_part_t *newSpcialPart;      /* 新建弹幕特殊部分结构体 */
 
     inEventPtr = inputSub->events;
     inStyleArr = inputSub->styles;
@@ -850,9 +865,11 @@ int assFileToDanmaku(ASSFILE *inputSub, df_danmaku_t **danmakuHead, const char *
             if ((newDanmakuNode = (df_danmaku_t *)malloc(sizeof(df_danmaku_t))) == NULL)
             {
                 // TODO:释放弹幕与字幕链表
-                // free(textPart);
+                free(textPart);
                 return 5;
             }
+            newDanmakuNode->user    = NULL;
+            newDanmakuNode->gift    = NULL;
             newDanmakuNode->special = NULL;
 
             /*
@@ -998,10 +1015,16 @@ int assFileToDanmaku(ASSFILE *inputSub, df_danmaku_t **danmakuHead, const char *
                 newDanmakuNode->color = fontColor;
             }
 
-            float tempTime = inEventPtr->start / 1000.0f + timeShift; /* 开始时间 */
+            double tempTime = inEventPtr->start / 1000.0 + (double)timeShift;
+            if (!isfinite(tempTime) || tempTime > MAX_ASS_MS_INT / 1000.0)
+            {
+                free(newDanmakuNode);
+                free(textPart);
+                return 7;
+            }
             if (tempTime < EPS)
             {
-                tempTime = 0.0f;
+                tempTime = 0.0;
             }
             newDanmakuNode->time = GET_MS_FLT(tempTime);
             newDanmakuNode->text = textPart; /* 文本部分 */
@@ -1009,7 +1032,7 @@ int assFileToDanmaku(ASSFILE *inputSub, df_danmaku_t **danmakuHead, const char *
             /* 特殊弹幕部分 */
             if (IS_SPECIAL(newDanmakuNode))
             {
-                if ((newSpcialPart = (SPPART *)malloc(sizeof(SPPART))) == NULL)
+                if ((newSpcialPart = (df_special_danmaku_part_t *)malloc(sizeof(df_special_danmaku_part_t))) == NULL)
                 {
                     // TODO:释放弹幕与字幕链表
                     free(newDanmakuNode);
@@ -1114,10 +1137,10 @@ static void mergeGiftDanmaku(df_danmaku_t *head)
  * 百位 1 弹幕池为空
  */
 int writeAss(const char *const fileName, df_danmaku_t *danmakuHead, const df_config_t config,
-             const ASSFILE *const subPart, STATUS *const status)
+             const ASSFILE *const subPart, df_status_t *const status)
 {
 
-    FILE *fptr = fopen(fileName, "w");
+    FILE *fptr = df_fopen(fileName, "w");
 
     int returnValue = 0;
 
@@ -1142,7 +1165,7 @@ int writeAss(const char *const fileName, df_danmaku_t *danmakuHead, const df_con
     /* 写info部分 */
     fprintf(fptr,
             "[Script Info]\n"
-            "; Script generated by DanmakuFactory v" VERSION "\n"
+            "; Script generated by DanmakuFactory v%s\n"
             "; https://github.com/hihkm/DanmakuFactory/\n"
             //   Title: file base name
             "ScriptType: v4.00+\n"
@@ -1152,7 +1175,7 @@ int writeAss(const char *const fileName, df_danmaku_t *danmakuHead, const df_con
             "Timer: 100.0000\n"
             "WrapStyle: 2\n"
             "ScaledBorderAndShadow: yes\n\n",
-            config.resolution.x, config.resolution.y);
+            df_get_version(), config.screen.resolution.x, config.screen.resolution.y);
 
     /* 写styles部分 */
     {
@@ -1166,12 +1189,12 @@ int writeAss(const char *const fileName, df_danmaku_t *danmakuHead, const df_con
         char primaryColour[ASS_COLOR_LEN];
         char outlineColour[ASS_COLOR_LEN];
         int  bold = 0;
-        toHexOpacity(255 - config.opacity, hexOpacity);
-        toHexOpacity(255 - config.outline_opacity, hexOutlineOpacity);
+        toHexOpacity(255 - config.text.opacity, hexOpacity);
+        toHexOpacity(255 - config.text.outline_opacity, hexOutlineOpacity);
         sprintf(primaryColour, "&H%sFFFFFF", hexOpacity);
         sprintf(outlineColour, "&H%s000000", hexOutlineOpacity);
 
-        if (config.bold == true)
+        if (config.text.bold == true)
         {
             bold = 1;
         }
@@ -1182,34 +1205,34 @@ int writeAss(const char *const fileName, df_danmaku_t *danmakuHead, const df_con
 
         /* 样式设定 */
         fprintf(fptr, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
-                "R2L", config.fontname, config.font_size, primaryColour, "&H00FFFFFF", outlineColour, "&H1E6A5149",
-                bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, config.outline, config.shadow, 8, 0, 0, 0, 1);
+                "R2L", config.text.fontname, config.text.font_size, primaryColour, "&H00FFFFFF", outlineColour, "&H1E6A5149",
+                bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, config.text.outline, config.text.shadow, 8, 0, 0, 0, 1);
 
         fprintf(fptr, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
-                "L2R", config.fontname, config.font_size, primaryColour, "&H00FFFFFF", outlineColour, "&H1E6A5149",
-                bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, config.outline, config.shadow, 8, 0, 0, 0, 1);
+                "L2R", config.text.fontname, config.text.font_size, primaryColour, "&H00FFFFFF", outlineColour, "&H1E6A5149",
+                bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, config.text.outline, config.text.shadow, 8, 0, 0, 0, 1);
 
         fprintf(fptr, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
-                "TOP", config.fontname, config.font_size, primaryColour, "&H00FFFFFF", outlineColour, "&H1E6A5149",
-                bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, config.outline, config.shadow, 8, 0, 0, 0, 1);
+                "TOP", config.text.fontname, config.text.font_size, primaryColour, "&H00FFFFFF", outlineColour, "&H1E6A5149",
+                bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, config.text.outline, config.text.shadow, 8, 0, 0, 0, 1);
 
         fprintf(fptr, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
-                "BTM", config.fontname, config.font_size, primaryColour, "&H00FFFFFF", outlineColour, "&H1E6A5149",
-                bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, config.outline, config.shadow, 8, 0, 0, 0, 1);
+                "BTM", config.text.fontname, config.text.font_size, primaryColour, "&H00FFFFFF", outlineColour, "&H1E6A5149",
+                bold, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, config.text.outline, config.text.shadow, 8, 0, 0, 0, 1);
 
         fprintf(fptr, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d", "SP",
-                config.fontname, config.font_size, "&H00FFFFFF", "&H00FFFFFF", outlineColour, "&H1E6A5149", bold, 0, 0,
-                0, 100.00, 100.00, 0.00, 0.00, 1, config.outline, config.shadow, 7, 0, 0, 0, 1);
-        float msgboxOutline = config.outline * config.font_size / config.font_size;
-        float msgboxShadow  = config.shadow * config.font_size / config.font_size;
+                config.text.fontname, config.text.font_size, "&H00FFFFFF", "&H00FFFFFF", outlineColour, "&H1E6A5149", bold, 0, 0,
+                0, 100.00, 100.00, 0.00, 0.00, 1, config.text.outline, config.text.shadow, 7, 0, 0, 0, 1);
+        float msgboxOutline = config.text.outline * config.msgbox.font_size / config.text.font_size;
+        float msgboxShadow  = config.text.shadow * config.msgbox.font_size / config.text.font_size;
         fprintf(fptr, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
-                "MSG", config.fontname, config.font_size, "&H00FFFFFF", "&H00FFFFFF", outlineColour, "&H1E6A5149", bold,
+                "MSG", config.text.fontname, config.msgbox.font_size, "&H00FFFFFF", "&H00FFFFFF", outlineColour, "&H1E6A5149", bold,
                 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 1, msgboxOutline, msgboxShadow, 7, 0, 0, 0, 1);
 
-        if (config.statistics_mode != 0)
+        if (config.screen.statistics_mode != 0)
         {
             fprintf(fptr, "\nStyle: %s,%s,%d,%s,%s,%s,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%.1f,%.1f,%d,%d,%d,%d,%d",
-                    "danmakuFactory_stat", config.fontname, config.font_size, "&H35FFFFFF", "&H35FFFFFF", "&H35000000",
+                    "danmakuFactory_stat", config.text.fontname, config.text.font_size, "&H35FFFFFF", "&H35FFFFFF", "&H35000000",
                     "&H356A5149", 0, 0, 0, 0, 100.00, 100.00, 0.00, 0.00, 0, 0.0, 0.0, 5, 0, 0, 0, 1);
         }
 
@@ -1223,8 +1246,13 @@ int writeAss(const char *const fileName, df_danmaku_t *danmakuHead, const df_con
     fprintf(fptr, "\n\n[Events]\n"
                   "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text");
 
-    returnValue *= 10;
-    returnValue += writeAssDanmakuPart(fptr, danmakuHead, config, status);
+    returnValue = writeAssDanmakuPart(fptr, danmakuHead, config, status);
+    if (returnValue != 0)
+    {
+        /* FILE 仅由创建它的 writeAss 关闭，失败后停止后续写入。 */
+        fclose(fptr);
+        return returnValue * 10;
+    }
 
     /* 刷新status */
     if (status != NULL)
@@ -1235,12 +1263,22 @@ int writeAss(const char *const fileName, df_danmaku_t *danmakuHead, const df_con
     }
 
     returnValue *= 10;
-    returnValue += writeAssStatPart(fptr, danmakuHead, config.statistics_mode, config.scroll_duration,
-                                    config.fixed_duration, config.density, config.block_mode);
+    returnValue += writeAssStatPart(fptr, danmakuHead, config.screen.statistics_mode,
+                                    GET_ASS_MS_FLT(config.danmaku.scroll_duration),
+                                    GET_ASS_MS_FLT(config.danmaku.fixed_duration), config.danmaku.density,
+                                    config.danmaku.block_mode);
 
     // TODO:添加函数writeAssSubPart()
 
-    fclose(fptr);
+    bool write_failed = ferror(fptr) != 0;
+    if (fclose(fptr) != 0)
+    {
+        write_failed = true;
+    }
+    if (write_failed)
+    {
+        return 90;
+    }
 
     return returnValue;
 }
@@ -1337,8 +1375,8 @@ static inline DLGLIST *getNewDlgListPtr(const int startPosX, const int startPosY
     return newDlgListPtr;
 }
 
-static inline void amendMessage(MSGLIST *msgListPtr, const int msgAnimationTime, Coord *resolution, Coord *pos,
-                                Coord *size, char *msgBoxClip)
+static inline void amendMessage(MSGLIST *msgListPtr, const int msgAnimationTime, df_coord_t *resolution, df_coord_t *pos,
+                                df_coord_t *size, char *msgBoxClip)
 {
     DLGLIST *dlgListPtr, *dlgListNextPtr, *newDlgListPtr;
     int      thisMsgDeltaTime, nextMsgDeltaTime;
@@ -1597,7 +1635,7 @@ static inline void appendMessage(const int startPosX, const int startPosY, const
 }
 
 static inline void appendEndMessage(const int msgStartTime, const int startTime, const int endTime,
-                                    const int totalUpHeight, MSGLIST *msgListPtr, Coord *pos)
+                                    const int totalUpHeight, MSGLIST *msgListPtr, df_coord_t *pos)
 {
     if (endTime <= msgStartTime || msgListPtr->isUpMoved == true)
     {
@@ -1613,7 +1651,7 @@ static inline void appendEndMessage(const int msgStartTime, const int startTime,
     }
 }
 
-static void writeAliveMessage(FILE *opF, Coord *resolution, Coord *pos, Coord *size, char *msgBoxClip,
+static void writeAliveMessage(FILE *opF, df_coord_t *resolution, df_coord_t *pos, df_coord_t *size, char *msgBoxClip,
                               const int msgFontSize, const int msgAnimationTime, MSGLIST **msgListHead,
                               MSGLIST **msgListTail, int lastMsgEndTime, const int msgStartTime, const int msgEndTime)
 {
@@ -1836,28 +1874,28 @@ static void writeAliveMessage(FILE *opF, Coord *resolution, Coord *pos, Coord *s
  * 3 4 5 6 7 8 申请内存空间失败
  * 9 写文件时发生错误
  */
-int writeAssDanmakuPart(FILE *opF, df_danmaku_t *head, df_config_t config, STATUS *const status)
+int writeAssDanmakuPart(FILE *opF, df_danmaku_t *head, df_config_t config, df_status_t *const status)
 {
-    Coord       resolution     = config.resolution;
-    const int   font_size      = config.font_size;
-    const char *fontName       = config.fontname;
-    const int   rollTime       = GET_ASS_MS_FLT(config.scroll_duration); // 精度为 10 毫秒
-    const int   holdTime       = GET_ASS_MS_FLT(config.fixed_duration);  // 精度为 10 毫秒
-    const float display_area   = config.display_area;
-    const float rollArea       = config.scroll_area;
-    const int   density        = config.density;
-    const int   line_spacing   = config.line_spacing;
-    const int   blockMode      = config.block_mode;
-    const bool  keep_blocked  = config.keep_blocked;
-    const bool  show           = config.show;
-    const bool  showUserName   = config.show_username;
-    Coord       size           = config.size;
-    Coord       pos            = config.pos;
-    int         msgFontSize    = config.font_size;
-    const int   msgDuration    = GET_ASS_MS_FLT(config.duration);        // 精度为 10 毫秒
-    const int   gift_min_price = (int)(config.gift_min_price * 1000.0f); // 精度为 1 厘
-    const float outlineWidth   = config.outline;
-    const float outline_blur   = config.outline_blur;
+    df_coord_t  resolution     = config.screen.resolution;
+    const int   font_size      = config.text.font_size;
+    const char *fontName       = config.text.fontname;
+    const int   rollTime       = GET_ASS_MS_FLT(config.danmaku.scroll_duration); // 精度为 10 毫秒
+    const int   holdTime       = GET_ASS_MS_FLT(config.danmaku.fixed_duration);  // 精度为 10 毫秒
+    const float display_area   = config.screen.display_area;
+    const float rollArea       = config.screen.scroll_area;
+    const int   density        = config.danmaku.density;
+    const int   line_spacing   = config.text.line_spacing;
+    const int   blockMode      = config.danmaku.block_mode;
+    const bool  keep_blocked  = config.danmaku.keep_blocked;
+    const bool  show           = config.msgbox.show;
+    const bool  showUserName   = config.danmaku.show_username;
+    df_coord_t  size           = config.msgbox.size;
+    df_coord_t  pos            = config.msgbox.pos;
+    int         msgFontSize    = config.msgbox.font_size;
+    const int   msgDuration    = GET_ASS_MS_FLT(config.msgbox.duration);        // 精度为 10 毫秒
+    const int   gift_min_price = (int)(config.msgbox.gift_min_price * 1000.0f); // 精度为 1 厘
+    const float outlineWidth   = config.text.outline;
+    const float outline_blur   = config.text.outline_blur;
 
     /* 刷新status */
     if (status != NULL)
@@ -1881,6 +1919,9 @@ int writeAssDanmakuPart(FILE *opF, df_danmaku_t *head, df_config_t config, STATU
     int cnt;
     // char tempText[MAX_TEXT_LENGTH];
     int ret_code = 0;
+
+    /* 初始化文本度量上下文（精确测量或降级） */
+    df_text_context_t *text_ctx = df_text_create();
 
     df_danmaku_t *now     = NULL;
     df_danmaku_t *signPtr = head, *scanPtr = head;
@@ -1923,32 +1964,38 @@ int writeAssDanmakuPart(FILE *opF, df_danmaku_t *head, df_config_t config, STATU
         }
     }
 
+    /* 有效的正比例也可能不足一个像素，排布数组必须至少有一行。 */
+    if (rollResY < 1)
+    {
+        rollResY = 1;
+    }
+    if (holdResY < 1)
+    {
+        holdResY = 1;
+    }
+
     if ((R2LToRightTime = (int *)malloc(rollResY * sizeof(int))) == NULL)
     {
-        fclose(opF);
-        return 3;
+        ret_code = 3;
+        goto BYE;
     }
     if ((R2LToLeftTime = (int *)malloc(rollResY * sizeof(int))) == NULL)
     {
-        fclose(opF);
         ret_code = 4;
         goto BYE;
     }
     if ((L2RToRightTime = (int *)malloc(rollResY * sizeof(int))) == NULL)
     {
-        fclose(opF);
         ret_code = 5;
         goto BYE;
     }
     if ((L2RToLeftTime = (int *)malloc(rollResY * sizeof(int))) == NULL)
     {
-        fclose(opF);
         ret_code = 6;
         goto BYE;
     }
     if ((fixEndTime = (int *)malloc(holdResY * sizeof(int))) == NULL)
     {
-        fclose(opF);
         ret_code = 7;
         goto BYE;
     }
@@ -1997,7 +2044,7 @@ int writeAssDanmakuPart(FILE *opF, df_danmaku_t *head, df_config_t config, STATU
          * 除非按类型屏蔽，否则不屏蔽特殊弹幕（按密度或重复内容屏蔽无效）
          * 但特殊弹幕占用弹幕密度，当超过指定密度时，会将普通弹幕挤下来
          */
-        if ((density > 0 || (blockMode & BLK_REPEAT)) && IS_NORMAL(now))
+        if ((density > 0 || (blockMode & DF_BLOCK_MODE_REPEAT)) && IS_NORMAL(now))
         {
             int danmakuNum = 0;
 
@@ -2011,7 +2058,7 @@ int writeAssDanmakuPart(FILE *opF, df_danmaku_t *head, df_config_t config, STATU
             {
                 if (scanPtr->type > 0 && getEndTime(scanPtr, rollTime, holdTime) > now->time)
                 {
-                    if (IS_NORMAL(scanPtr) && now->type > 0 && (blockMode & BLK_REPEAT) &&
+                    if (IS_NORMAL(scanPtr) && now->type > 0 && (blockMode & DF_BLOCK_MODE_REPEAT) &&
                         !strcmp(scanPtr->text, now->text))
                     { /* 如果重复内容屏蔽开启且内容重复 */
                         if (now->type > 0)
@@ -2045,16 +2092,39 @@ int writeAssDanmakuPart(FILE *opF, df_danmaku_t *head, df_config_t config, STATU
         }
 
         /* 文本长度计算 */
-        int textLen = 0, textHei = 0;
+        int textLen = -1, textHei = 0;
+        int effective_size = font_size + (now->font_size - 25);
 
-        /* 计算用户ID长度 */
-        if (showUserName == true && now->user != NULL)
+        if (df_text_is_available(text_ctx))
         {
-            textLen = getStrLen((unsigned char *)(now->user->name), font_size, now->font_size, fontName);
+            /* 任一分段测量失败时，整个文本使用估算宽度。 */
+            textLen = df_text_measure_width(text_ctx, now->text, fontName, effective_size);
+            if (textLen >= 0 && showUserName == true && now->user != NULL)
+            {
+                int userLen = df_text_measure_width(text_ctx, now->user->name, fontName, effective_size);
+                int separatorLen = df_text_measure_width(text_ctx, IS_R2L(now) ? ": " : ":", fontName,
+                                                         effective_size);
+                if (userLen < 0 || separatorLen < 0)
+                {
+                    textLen = -1;
+                }
+                else
+                {
+                    textLen += userLen + separatorLen;
+                }
+            }
         }
 
-        /* 计算弹幕内容长度 */
-        textLen += getStrLen((unsigned char *)(now->text), font_size, now->font_size, fontName);
+        if (textLen < 0)
+        {
+            /* 降级：精确测量不可用或字体未注册时使用旧估算算法 */
+            textLen = 0;
+            if (showUserName == true && now->user != NULL)
+            {
+                textLen = getStrLen((unsigned char *)(now->user->name), font_size, now->font_size, fontName);
+            }
+            textLen += getStrLen((unsigned char *)(now->text), font_size, now->font_size, fontName);
+        }
         textHei        = getStrHei((unsigned char *)(now->text), font_size, now->font_size, fontName);
         rollLineHeight = holdLineHeight = textHei + line_spacing;
         if (rollLineHeight <= 0)
@@ -2076,15 +2146,10 @@ int writeAssDanmakuPart(FILE *opF, df_danmaku_t *head, df_config_t config, STATU
 
         /* 特殊字符替换 */
         char escapedText[MAX_TEXT_LENGTH];
-        if (IS_SPECIAL(now))
-        {
-            strcpy(escapedText, now->text);
-        }
-        else
+        if (!IS_SPECIAL(now))
         {
             assEscape(escapedText, now->text, MAX_TEXT_LENGTH, ASS_ESCAPE);
         }
-        // str_copy_n(escapedText, now->text, MAX_TEXT_LENGTH);
 
         /* 弹幕按类型解析 */
         if (IS_R2L(now))
@@ -2334,7 +2399,7 @@ int writeAssDanmakuPart(FILE *opF, df_danmaku_t *head, df_config_t config, STATU
                         goto NEXTNODE;
                     }
                 }
-                PositionY = findMin(fixEndTime, holdResY, holdLineHeight, 1);
+                PositionY = findMin(fixEndTime, holdResY, holdLineHeight - 1, 1) + 1;
             }
 
             if (now->type > 0)
@@ -2475,7 +2540,7 @@ int writeAssDanmakuPart(FILE *opF, df_danmaku_t *head, df_config_t config, STATU
                 fprintf(opF, "\\fn%s", now->special->fontName);
             }
 
-            fprintf(opF, "}%s", escapedText);
+            fprintf(opF, "}%s", now->text);
         }
         else if (now->type == 8) /* 代码弹幕 */
         {
@@ -2502,7 +2567,6 @@ int writeAssDanmakuPart(FILE *opF, df_danmaku_t *head, df_config_t config, STATU
             if ((newMsgNode = (MSGLIST *)malloc(sizeof(MSGLIST))) == NULL)
             {
                 /* TODO: 异常处理 */
-                fclose(opF);
                 ret_code = 3;
                 goto BYE;
             }
@@ -2568,8 +2632,8 @@ int writeAssDanmakuPart(FILE *opF, df_danmaku_t *head, df_config_t config, STATU
 
         if (ferror(opF))
         {
-            fclose(opF);
-            return 9;
+            ret_code = 9;
+            goto BYE;
         }
 
     NEXTNODE:
@@ -2596,10 +2660,14 @@ int writeAssDanmakuPart(FILE *opF, df_danmaku_t *head, df_config_t config, STATU
                           &msgListTail, msgEndTime, MAX_ASS_MS_INT, MAX_ASS_MS_INT);
     }
     /* 清空缓冲区 */
-    fflush(opF);
+    if (fflush(opF) != 0)
+    {
+        ret_code = 9;
+    }
 
 BYE:
     /* 归还空间 */
+    df_text_destroy(text_ctx);
     if (R2LToRightTime != NULL)
         free(R2LToRightTime);
     if (R2LToLeftTime != NULL)
@@ -2622,7 +2690,7 @@ BYE:
 /*
  * 写ass字幕的统计部分
  * 参数：
- * 输出文件名/链表头/模式（位运算 TABLE 数据表 / HISTOGRAM 直方图）/
+ * 输出文件名/链表头/模式（位运算 DF_STATISTICS_MODE_TABLE 数据表 / DF_STATISTICS_MODE_HISTOGRAM 直方图）/
  * 分辨率宽/分辨率高/滚动速度（滚动弹幕）/停留时间（现隐弹幕）/
  * 字号/字体(utf-8)/屏蔽（右左/左右/顶部/底部/特殊/彩色/重复）
  * 返回值：
@@ -2658,13 +2726,13 @@ int writeAssStatPart(FILE *opF, df_danmaku_t *head, int mode, const int rollTime
 
     df_danmaku_t *signPtr = NULL, *scanPtr = NULL;
 
-    if (!(mode & TABLE))
+    if (!(mode & DF_STATISTICS_MODE_TABLE))
     { /* 如果不需要数据框，直方图就要上移 */
         pointShiftY = -255;
     }
 
     /* 画弹幕直方图 */
-    if (mode & HISTOGRAM)
+    if (mode & DF_STATISTICS_MODE_HISTOGRAM)
     {
         int mPointX;            /* 画图时x坐标的变量 */
 
@@ -2865,7 +2933,7 @@ int writeAssStatPart(FILE *opF, df_danmaku_t *head, int mode, const int rollTime
     }
 
     /* 显示弹幕统计表 */
-    if (mode & TABLE)
+    if (mode & DF_STATISTICS_MODE_TABLE)
     {
         /* 非法数据拦截 部分类型未做统计模式 */
         now = head;
@@ -2927,8 +2995,8 @@ int writeAssStatPart(FILE *opF, df_danmaku_t *head, int mode, const int rollTime
                      "}DanmakuFactory by hkm");
 
         /* 显示弹幕类型表头，如果被屏蔽就使用划线 */
-        if (!(blockMode & BLK_R2L) || !(blockMode & BLK_L2R) || !(blockMode & BLK_TOP) || !(blockMode & BLK_BOTTOM) ||
-            !(blockMode & BLK_SPECIAL))
+        if (!(blockMode & DF_BLOCK_MODE_R2L) || !(blockMode & DF_BLOCK_MODE_L2R) || !(blockMode & DF_BLOCK_MODE_TOP) || !(blockMode & DF_BLOCK_MODE_BOTTOM) ||
+            !(blockMode & DF_BLOCK_MODE_SPECIAL))
         {
             printStatDataStr(opF, 0, endTime, 62, 65, NULL, "ALL");
         }
@@ -2936,7 +3004,7 @@ int writeAssStatPart(FILE *opF, df_danmaku_t *head, int mode, const int rollTime
         {
             printStatDataStr(opF, 0, endTime, 62, 65, "\\s1", "ALL");
         }
-        if (!(blockMode & BLK_R2L))
+        if (!(blockMode & DF_BLOCK_MODE_R2L))
         {
             printStatDataStr(opF, 0, endTime, 62, 95, NULL, "R to L");
         }
@@ -2944,7 +3012,7 @@ int writeAssStatPart(FILE *opF, df_danmaku_t *head, int mode, const int rollTime
         {
             printStatDataStr(opF, 0, endTime, 62, 95, "\\s1", "R to L");
         }
-        if (!(blockMode & BLK_L2R))
+        if (!(blockMode & DF_BLOCK_MODE_L2R))
         {
             printStatDataStr(opF, 0, endTime, 62, 125, NULL, "L to R");
         }
@@ -2952,7 +3020,7 @@ int writeAssStatPart(FILE *opF, df_danmaku_t *head, int mode, const int rollTime
         {
             printStatDataStr(opF, 0, endTime, 62, 125, "\\s1", "L to R");
         }
-        if (!(blockMode & BLK_TOP))
+        if (!(blockMode & DF_BLOCK_MODE_TOP))
         {
             printStatDataStr(opF, 0, endTime, 62, 155, NULL, "TOP");
         }
@@ -2960,7 +3028,7 @@ int writeAssStatPart(FILE *opF, df_danmaku_t *head, int mode, const int rollTime
         {
             printStatDataStr(opF, 0, endTime, 62, 155, "\\s1", "TOP");
         }
-        if (!(blockMode & BLK_BOTTOM))
+        if (!(blockMode & DF_BLOCK_MODE_BOTTOM))
         {
             printStatDataStr(opF, 0, endTime, 62, 185, NULL, "BOTTOM");
         }
@@ -2968,7 +3036,7 @@ int writeAssStatPart(FILE *opF, df_danmaku_t *head, int mode, const int rollTime
         {
             printStatDataStr(opF, 0, endTime, 62, 185, "\\s1", "BOTTOM");
         }
-        if (!(blockMode & BLK_SPECIAL))
+        if (!(blockMode & DF_BLOCK_MODE_SPECIAL))
         {
             printStatDataStr(opF, 0, endTime, 62, 215, NULL, "SPCIAL");
         }
@@ -3153,28 +3221,28 @@ int writeAssStatPart(FILE *opF, df_danmaku_t *head, int mode, const int rollTime
     } /* 结束 if */
 
     /* 提醒图表即将关闭 */
-    if ((mode & TABLE) || (mode & HISTOGRAM))
+    if ((mode & DF_STATISTICS_MODE_TABLE) || (mode & DF_STATISTICS_MODE_HISTOGRAM))
     {
         /* 提示文字底框进场动画 */
         fprintf(opF, "\nDialogue: 9,");
         printTime(opF, lastDanmakuStartTime, ",");
         printTime(opF, lastDanmakuStartTime + 200, ",");
         /* 底框 */
-        if ((mode & TABLE) && (mode & HISTOGRAM))
+        if ((mode & DF_STATISTICS_MODE_TABLE) && (mode & DF_STATISTICS_MODE_HISTOGRAM))
         {
             fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an4\\move(20,377,20,423)"
                          "\\iclip(m 20 340 l 445 340 l 445 385 l 20 385 l 20 340)\\1c&HEAF3CE"
                          "\\p1}m 15 0 l 410 0 b 416 0 425 9 425 15 l 425 30 b 425 36 416 45 410 45"
                          " l 15 45 b 9 45 0 37 0 30 l 0 15 b 0 9 9 0 15 0{\\p0}");
         }
-        else if (mode & TABLE)
+        else if (mode & DF_STATISTICS_MODE_TABLE)
         {
             fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an4\\move(20,252,20,288)"
                          "\\iclip(m 20 245 l 445 470 l 445 515 l 20 515 l 20 470)\\1c&HEAF3CE"
                          "\\p1}m 15 0 l 410 0 b 416 0 425 9 425 15 l 425 30 b 425 36 416 45 410 45"
                          " l 15 45 b 9 45 0 37 0 30 l 0 15 b 0 9 9 0 15 0{\\p0}");
         }
-        else if (mode & HISTOGRAM)
+        else if (mode & DF_STATISTICS_MODE_HISTOGRAM)
         {
             fprintf(opF, "Default,,0000,0000,0000,,{\\an4\\move(20,122,20,168)"
                          "\\iclip(m 20 85 l 445 85 l 445 130 l 20 130 l 20 85)\\1c&HEAF3CE"
@@ -3187,19 +3255,19 @@ int writeAssStatPart(FILE *opF, df_danmaku_t *head, int mode, const int rollTime
         printTime(opF, lastDanmakuStartTime + 200, ",");
         printTime(opF, lastDanmakuStartTime + 30 * 1000, ",");
         /* 底框 */
-        if ((mode & TABLE) && (mode & HISTOGRAM))
+        if ((mode & DF_STATISTICS_MODE_TABLE) && (mode & DF_STATISTICS_MODE_HISTOGRAM))
         {
             fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\1c&HEAF3CE\\p1}"
                          "m 35 400 l 430 400 b 436 400 445 409 445 415 l 445 430 b 445 436 436 445 430 445"
                          " l 35 445 b 29 445 20 437 20 430 l 20 415 b 20 409 29 400 35 400{\\p0}");
         }
-        else if (mode & TABLE)
+        else if (mode & DF_STATISTICS_MODE_TABLE)
         {
             fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\1c&HEAF3CE\\p1}"
                          "m 35 275 l 430 275 b 436 275 445 284 445 290 l 445 305 b 445 311 436 320 430 320"
                          " l 35 320 b 29 320 20 312 20 305 l 20 290 b 20 280 29 275 35 275{\\p0}");
         }
-        else if (mode & HISTOGRAM)
+        else if (mode & DF_STATISTICS_MODE_HISTOGRAM)
         {
             fprintf(opF, "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\1c&HEAF3CE\\p1}"
                          "m 35 145 l 430 145 b 436 145 445 154 445 160 l 445 175 b 445 181 436 190 430 190"
@@ -3211,7 +3279,7 @@ int writeAssStatPart(FILE *opF, df_danmaku_t *head, int mode, const int rollTime
         printTime(opF, lastDanmakuStartTime + 200, ",");
         printTime(opF, lastDanmakuStartTime + 30 * 1000, ",");
         /* 提示框进度条 */
-        if ((mode & TABLE) && (mode & HISTOGRAM))
+        if ((mode & DF_STATISTICS_MODE_TABLE) && (mode & DF_STATISTICS_MODE_HISTOGRAM))
         {
             fprintf(opF,
                     "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\move(20, 400, 445, 400)\\clip(m 35 400 l 430 400 "
@@ -3219,7 +3287,7 @@ int writeAssStatPart(FILE *opF, df_danmaku_t *head, int mode, const int rollTime
                     "b 29 445 20 437 20 430 l 20 415 b 20 409 29 400 35 400)"
                     "\\1c&HCECEF3\\p1}m 0 0 l -425 0 l -425 45 l 0 45 l 0 0{\\p0}");
         }
-        else if (mode & TABLE)
+        else if (mode & DF_STATISTICS_MODE_TABLE)
         {
             fprintf(opF,
                     "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\move(20, 275, 445, 275)\\clip(m 35 275 l 430 275 "
@@ -3227,7 +3295,7 @@ int writeAssStatPart(FILE *opF, df_danmaku_t *head, int mode, const int rollTime
                     "b 29 320 20 312 20 305 l 20 290 b 20 280 29 275 35 275)"
                     "\\1c&HCECEF3\\p1}m 0 0 l -425 0 l -425 45 l 0 45 l 0 0{\\p0}");
         }
-        else if (mode & HISTOGRAM)
+        else if (mode & DF_STATISTICS_MODE_HISTOGRAM)
         {
             fprintf(opF,
                     "danmakuFactory_stat,,0000,0000,0000,,{\\an7\\move(20, 145, 445, 145)\\clip(m 35 145 l 430 145 "
@@ -3243,21 +3311,21 @@ int writeAssStatPart(FILE *opF, df_danmaku_t *head, int mode, const int rollTime
             printTime(opF, lastDanmakuStartTime + cnt * 1000, ",");
             printTime(opF, lastDanmakuStartTime + (cnt + 1) * 1000, ",");
             /* 底框 */
-            if ((mode & TABLE) && (mode & HISTOGRAM))
+            if ((mode & DF_STATISTICS_MODE_TABLE) && (mode & DF_STATISTICS_MODE_HISTOGRAM))
             {
                 fprintf(opF,
                         "danmakuFactory_stat,,0000,0000,0000,,{\\an4\\pos(35,422)\\b1\\fs25\\1c&HFFFFFF"
                         "}These charts will close after %d s",
                         30 - cnt);
             }
-            else if (mode & TABLE)
+            else if (mode & DF_STATISTICS_MODE_TABLE)
             {
                 fprintf(opF,
                         "danmakuFactory_stat,,0000,0000,0000,,{\\an4\\pos(35,297)\\b1\\fs25\\1c&HFFFFFF"
                         "}These charts will close after %d s",
                         30 - cnt);
             }
-            else if (mode & HISTOGRAM)
+            else if (mode & DF_STATISTICS_MODE_HISTOGRAM)
             {
                 fprintf(opF,
                         "danmakuFactory_stat,,0000,0000,0000,,{\\an4\\pos(35,167)\\b1\\fs25\\1c&HFFFFFF"
@@ -3711,17 +3779,17 @@ static int findMin(int *array, const int numOfLine, const int stopSubScript, con
     if (!mode)
     { /* 正序查找 */
         minSub = 0;
-        for (cnt = minSub + 1; cnt < stopSubScript; cnt++)
+        for (cnt = minSub + 1; cnt <= stopSubScript; cnt++)
         {
             if (array[cnt] < array[minSub])
             {
                 minSub = cnt;
             }
         }
-        if (minSub == 0 && array[minSub] == array[stopSubScript - 1])
+        if (minSub == 0 && array[minSub] == array[stopSubScript])
         {
             // refresh array
-            for (cnt = minSub + 1; cnt < stopSubScript; cnt++)
+            for (cnt = minSub + 1; cnt <= stopSubScript; cnt++)
             {
                 if (array[cnt] == array[minSub])
                 {

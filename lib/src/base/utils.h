@@ -23,6 +23,8 @@
 #ifndef DF_BASE_UTILS_H_
 #define DF_BASE_UTILS_H_
 
+#include <stdio.h>
+
 #include "config/define.h"
 #include "danmakufactory.h"
 
@@ -38,8 +40,11 @@ bool        get_relative_path(const char *full_path, char *buffer, size_t buffer
 int         strcmp_ignore_case(const char *str1, const char *str2);
 
 df_filetype_t get_filetype(const char *file_path);
+df_filetype_t get_filetype_by_name(const char *name);
 
 df_error_code_t read_file_lines(const char *filename, char ***content_lines);
+FILE           *df_fopen(const char *path, const char *mode);
+char           *df_strdup(const char *source);
 df_error_code_t str_copy_n(char *destination, const char *source, size_t count);
 df_error_code_t str_copy_ns(char *destination, size_t size, const char *source, size_t count);
 df_error_code_t str_to_upper_s(char *destination, const char *source);

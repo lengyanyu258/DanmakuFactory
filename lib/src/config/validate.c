@@ -23,6 +23,7 @@
 
 #include "config/validate.h"
 
+#include <limits.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -35,7 +36,7 @@
 #define FLOAT_GREATER_OR_EQUAL(a, b) (a > b - EPS)
 
 #define VALIDATE_FLOAT_RANGE_INCLUDE(number, left_endpoint, right_endpoint)                                            \
-    if ((number < left_endpoint - EPS) || (number > right_endpoint + EPS))                                             \
+    if (!isfinite(number) || (number < left_endpoint - EPS) || (number > right_endpoint + EPS))                                             \
     {                                                                                                                  \
         return DF_SET_ERROR(DF_ERROR_INVALID_CONFIG, "`" #number "` must be a real number in range [" #left_endpoint   \
                                                      ", " #right_endpoint "].");                                       \
@@ -43,7 +44,7 @@
     return DF_SET_SUCCESS()
 
 #define VALIDATE_FLOAT_RANGE_INCLUDE_RIGHT_ENDPOINT(number, left_endpoint, right_endpoint)                             \
-    if ((number < left_endpoint + EPS) || (number > right_endpoint + EPS))                                             \
+    if (!isfinite(number) || (number < left_endpoint + EPS) || (number > right_endpoint + EPS))                                             \
     {                                                                                                                  \
         return DF_SET_ERROR(DF_ERROR_INVALID_CONFIG, "`" #number "` must be a real number in range (" #left_endpoint   \
                                                      ", " #right_endpoint "].");                                       \
@@ -51,7 +52,7 @@
     return DF_SET_SUCCESS()
 
 #define VALIDATE_FLOAT_GREATER(number, lower_bound)                                                                    \
-    if (number < lower_bound + EPS)                                                                                    \
+    if (!isfinite(number) || number < lower_bound + EPS)                                                                                    \
     {                                                                                                                  \
         return DF_SET_ERROR(DF_ERROR_INVALID_CONFIG,                                                                   \
                             "`" #number "` must be a real number greater than " #lower_bound ".");                     \
@@ -59,7 +60,7 @@
     return DF_SET_SUCCESS()
 
 #define VALIDATE_FLOAT_GREATER_OR_EQUAL(number, minimum)                                                               \
-    if (!FLOAT_GREATER_OR_EQUAL(number, minimum))                                                                      \
+    if (!isfinite(number) || !FLOAT_GREATER_OR_EQUAL(number, minimum))                                                                      \
     {                                                                                                                  \
         return DF_SET_ERROR(DF_ERROR_INVALID_CONFIG,                                                                   \
                             "`" #number "` must be a real number greater than or equal to " #minimum ".");             \
@@ -182,13 +183,17 @@ df_error_code_t df_validate_input_files(const df_fileinfos_t *input_files)
         return DF_SET_ERROR(DF_ERROR_INVALID_CONFIG, "input_files is NULL");
     }
 
-    if (input_files->number <= 0)
+    if (input_files->number == 0 || input_files->fileinfos == NULL)
     {
         return DF_SET_ERROR(DF_ERROR_INVALID_CONFIG, "input_files is empty");
     }
 
     for (size_t i = 0; i < input_files->number; i++)
     {
+        if (!isfinite(input_files->fileinfos[i].time_shift))
+        {
+            return DF_SET_ERROR(DF_ERROR_INVALID_CONFIG, "Input file time shift must be finite");
+        }
         if (input_files->fileinfos[i].type == DF_FILETYPE_UNKNOWN)
         {
             return DF_SET_ERROR(DF_ERROR_INVALID_CONFIG, "input file %zu type is unknown: %s", i,
@@ -211,6 +216,10 @@ df_error_code_t df_validate_output_file(const df_fileinfo_t *output_file)
         return DF_SET_ERROR(DF_ERROR_INVALID_CONFIG, "output_file is NULL");
     }
 
+    if (!isfinite(output_file->time_shift))
+    {
+        return DF_SET_ERROR(DF_ERROR_INVALID_CONFIG, "Output file time shift must be finite");
+    }
     if (output_file->type == DF_FILETYPE_UNKNOWN)
     {
         return DF_SET_ERROR(DF_ERROR_INVALID_CONFIG, "output file type is unknown: %s", output_file->path);
@@ -270,13 +279,13 @@ df_error_code_t df_validate_danmaku_density(const int density)
 /* 滚动时间 */
 df_error_code_t df_validate_danmaku_scroll_duration(const float scroll_duration)
 {
-    VALIDATE_FLOAT_GREATER(scroll_duration, 0.0);
+    VALIDATE_FLOAT_RANGE_INCLUDE_RIGHT_ENDPOINT(scroll_duration, 0.0, (MAX_ASS_MS_INT - 10) / 1000.0);
 }
 
 /* 固定时间 */
 df_error_code_t df_validate_danmaku_fixed_duration(const float fixed_duration)
 {
-    VALIDATE_FLOAT_GREATER(fixed_duration, 0.0);
+    VALIDATE_FLOAT_RANGE_INCLUDE_RIGHT_ENDPOINT(fixed_duration, 0.0, (MAX_ASS_MS_INT - 10) / 1000.0);
 }
 
 df_error_code_t df_validate_danmaku_block_mode(const df_block_flag_t block_mode)
@@ -385,17 +394,12 @@ df_error_code_t df_validate_text_line_spacing(const int line_spacing)
 /* 消息框大小 */
 df_error_code_t df_validate_msgbox_size(const df_coord_t *size)
 {
-
-    // if (config->size.x <= config->font_size || config->size.y <= config->font_size)
-    // {
-    //     fprintf(stderr, "\nERROR"
-    //                     "\n\"MsgBoxSize\" must be an integer greater than the \"font_size\".\n");
-    //     return false; // 消息框大小验证失败
-    // }
-
+    if (size == NULL || size->x <= 0 || size->y <= 0)
+    {
+        return DF_SET_ERROR(DF_ERROR_INVALID_CONFIG, "Message box dimensions must be positive integers");
+    }
     return DF_SET_SUCCESS();
 }
-
 df_error_code_t df_validate_msgbox_pos(const df_coord_t *pos)
 {
     // return df_validate_coordinate_json_val(json_val, pos);
@@ -410,12 +414,10 @@ df_error_code_t df_validate_msgbox_font_size(const int font_size)
 
 df_error_code_t df_validate_msgbox_duration(const float duration)
 {
-    // PARSE_NUM_JSON_VAL(json_val, duration);
-    return DF_SET_SUCCESS();
+    VALIDATE_FLOAT_RANGE_INCLUDE(duration, 0.0, (MAX_ASS_MS_INT - 10) / 1000.0);
 }
 
 df_error_code_t df_validate_msgbox_gift_min_price(const float gift_min_price)
 {
-    // PARSE_NUM_JSON_VAL(json_val, gift_min_price);
-    return DF_SET_SUCCESS();
+    VALIDATE_FLOAT_RANGE_INCLUDE(gift_min_price, 0.0, (INT_MAX - 10) / 1000.0);
 }

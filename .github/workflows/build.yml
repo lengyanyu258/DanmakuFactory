@@ -1,0 +1,96 @@
+name: Build
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      musl_static:
+        description: "Build fully-static musl binary"
+        type: boolean
+        default: false
+
+jobs:
+  # ==========================================================================
+  # Linux musl 全静态构建（Alpine 容器，原生 musl libc）
+  # ==========================================================================
+  linux-musl-static:
+    runs-on: ubuntu-latest
+    container: alpine:3.20
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'pull_request' ||
+      inputs.musl_static
+    steps:
+      - name: Install build dependencies
+        run: |
+          apk add --no-cache build-base cmake pkgconf git wget bash file curl \
+            musl-dev linux-headers \
+            freetype-dev harfbuzz-dev fontconfig-dev pcre2-dev \
+            expat-dev bzip2-dev libpng-dev zlib-dev
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Install xmake
+        run: |
+          wget -qO- https://xmake.io/shget.text | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - uses: actions/checkout@v4
+
+      - name: Configure (musl static release)
+        run: xmake f -m release --musl=y -y
+
+      - name: Build C static library
+        run: xmake build lib-static
+
+      - name: Build Rust CLI (static)
+        run: xmake cli
+
+      - name: Verify static linkage
+        run: |
+          BIN="cli/target/x86_64-unknown-linux-musl/release/DanmakuFactory"
+          file "$BIN"
+          # 完全静态的二进制 ldd 会报 "not a dynamic executable"
+          ldd "$BIN" 2>&1 | grep -qi "not a dynamic executable" && \
+            echo "PASS: fully static binary" || \
+            { echo "FAIL: binary has dynamic dependencies"; ldd "$BIN"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DanmakuFactory-linux-x86_64-musl-static
+          path: cli/target/x86_64-unknown-linux-musl/release/DanmakuFactory
+
+  # ==========================================================================
+  # Windows 构建（MSVC，动态库 + FFI 冒烟测试）
+  # ==========================================================================
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Configure
+        run: xmake f -m release -y
+
+      - name: Build
+        run: xmake build lib-shared
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: FFI smoke test
+        run: python tests/ffi_smoke.py

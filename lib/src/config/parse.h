@@ -30,6 +30,9 @@
 #include "config/define.h"
 #include "danmakufactory.h"
 
+/* Look up JSON object keys case-insensitively without changing string values. */
+yyjson_val *df_json_get_member(yyjson_val *object, const char *name);
+
 // 解析完整的JSON字符串（包含配置和文件信息）
 df_error_code_t df_parse_runtime_info_json_str(const char *json_str, df_runtime_info_t *runtime_info);
 df_error_code_t df_parse_config_json_val(yyjson_val *json_val, df_config_t *config);

@@ -70,8 +70,8 @@ extern "C"
 #define IS_NORMAL(ptr) (IS_R2L(ptr) || IS_L2R(ptr) || IS_TOP(ptr) || IS_BTM(ptr))
 #define IS_MSG(ptr)    (IS_MSG_SUPER_CHAT(ptr) || IS_MSG_GUARD(ptr) || IS_MSG_GIFT(ptr))
 
-#define GET_MS_FLT(sec)     ((int)((sec) * 1000.0f + 0.5f))
-#define GET_ASS_MS_FLT(sec) ((int)((sec) * 100.0f + 0.55f) * 10)
+#define GET_MS_FLT(sec)     ((int)((double)(sec) * 1000.0 + 0.5))
+#define GET_ASS_MS_FLT(sec) ((int)((double)(sec) * 100.0 + 0.55) * 10)
 #define GET_ASS_MS_INT(ms)  ((ms + 5) / 10 * 10)
 
 #define ARRAY_SIZE(arr) sizeof(arr) / sizeof((arr)[0])
@@ -84,10 +84,10 @@ typedef struct single_danmaku_s
     short                      font_size; /* 字体大小 25是基准 */
     int                        color;     /* 文字颜色 */
     char                      *text;      /* 文本内容 */
-    struct UserPart           *user;      /* 用户信息部分 */
-    struct GiftPart           *gift;      /* 礼物信息部分 */
-    struct SpecialDanmakuPart *special;   /* 特殊弹幕部分 */
-    struct single_danmaku_s   *next;
+    struct user_part_s            *user;      /* 用户信息部分 */
+    struct gift_part_s            *gift;      /* 礼物信息部分 */
+    struct special_danmaku_part_s *special;   /* 特殊弹幕部分 */
+    struct single_danmaku_s       *next;
 } df_danmaku_t;
 
 /* 用户信息部分 */

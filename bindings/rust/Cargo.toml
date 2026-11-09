@@ -1,0 +1,9 @@
+[package]
+links = "DanmakuFactory"
+name = "danmakufactory-sys"
+version = "2.0.0"
+edition = "2021"
+description = "Safe Rust bindings for DanmakuFactory C library"
+license = "MIT"
+
+[dependencies]

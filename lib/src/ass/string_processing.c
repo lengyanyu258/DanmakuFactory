@@ -24,10 +24,14 @@
 
 #include "ass/string_processing.h"
 
+#include <errno.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "base/define.h"
 #include "base/string.h"
+#include "base/utils.h"
 
 const struct AssEscapeListNode assEscapeList[] = {
     /* 源字符串 转义后字符串 */
@@ -174,87 +178,41 @@ char *deStyleNamePrefix(char *str)
  */
 int timeToInt(const char *ipStr)
 {
-    /* 0:00:01.60 */
-    int num = 0;
-    int time = 0;
-    char *ptr = (char *)ipStr;
-
-    /* 小时部分 */
-    while (*ptr != ':' && *ptr != '.' && *ptr != '\0')
+    if (!ipStr)
     {
-        if (*ptr == ' ')
-        {
-            ptr++;
-            continue;
-        }
-        num *= 10;
-        num += *ptr - '0';
-        ptr++;
-    }
-    time = num * 3600;
-    num = 0;
-    ptr++;
-
-    /* 分钟部分 */
-    while (*ptr != ':' && *ptr != '.' && *ptr != '\0')
-    {
-        if (*ptr == ' ')
-        {
-            ptr++;
-            continue;
-        }
-        num *= 10;
-        num += *ptr - '0';
-        ptr++;
-    }
-    time += num * 60;
-    num = 0;
-    ptr++;
-
-    /* 秒部分 */
-    while (*ptr != '.' && *ptr != ':' && *ptr != '\0')
-    {
-        if (*ptr == ' ')
-        {
-            ptr++;
-            continue;
-        }
-        num *= 10;
-        num += *ptr - '0';
-        ptr++;
-    }
-    time += num;
-    num = 0;
-    ptr++;
-
-    /* 毫秒部分 */
-    while (*ptr != '.' && *ptr != ':' && *ptr != '\0')
-    {
-        if (*ptr == ' ')
-        {
-            ptr++;
-            continue;
-        }
-        if (++num > 3)
-        { // 最多 3 位有效数字
-            if ((*ptr - '0') >= 5)
-            {
-                time++; // 四舍五入
-            }
-            break;
-        }
-        time *= 10;
-        time += *ptr - '0';
-        ptr++;
-    }
-    for (int i = 0; i < 3 - num; i++)
-    {
-        time *= 10;
+        return -1;
     }
 
-    return time;
+    char *end;
+    errno = 0;
+    long hours = strtol(ipStr, &end, 10);
+    if (end == ipStr || errno == ERANGE || hours < 0 || hours > MAX_ASS_MS_INT / 3600000 || *end != ':')
+    {
+        return -1;
+    }
+    const char *cursor = end + 1;
+    long minutes = strtol(cursor, &end, 10);
+    if (end == cursor || errno == ERANGE || minutes < 0 || minutes > 59 || *end != ':')
+    {
+        return -1;
+    }
+    cursor = end + 1;
+    double seconds = strtod(cursor, &end);
+    if (end == cursor || errno == ERANGE || !isfinite(seconds) || seconds < 0 || seconds >= 60)
+    {
+        return -1;
+    }
+    while (*end == ' ' || *end == '\t')
+    {
+        end++;
+    }
+    double milliseconds = ((double)hours * 3600.0 + (double)minutes * 60.0 + seconds) * 1000.0;
+    if (*end != '\0' || milliseconds > MAX_ASS_MS_INT)
+    {
+        return -1;
+    }
+    return (int)(milliseconds + 0.5);
 }
-
 /*
  * 数组清空
  * 参数：

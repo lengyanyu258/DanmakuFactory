@@ -22,18 +22,85 @@
  */
 
 #include <stdbool.h>
+#include "xml/file.h"
+
+#include <errno.h>
+#include <limits.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "base/df_list.h"
-#include "base/df_string.h"
+#include <yyjson.h>
+
+#include "base/string.h"
+#include "base/utils.h"
+#include "core/list.h"
 
 #define LABEL_LEN 10240
 
 static char *xmlUnescape(char *const str);
-static void  errorExit(FILE *ipF, DANMAKU *head, DANMAKU *ptr);
+static void  errorExit(FILE *ipF, df_danmaku_t *head, df_danmaku_t *ptr);
 
+static bool xml_json_number(yyjson_val *value, double *number)
+{
+    if (yyjson_is_num(value))
+    {
+        *number = yyjson_get_num(value);
+    }
+    else if (yyjson_is_str(value))
+    {
+        char *end;
+        const char *text = yyjson_get_str(value);
+        errno = 0;
+        *number = strtod(text, &end);
+        if (end == text || *end != '\0' || errno == ERANGE)
+        {
+            return false;
+        }
+    }
+    else
+    {
+        return false;
+    }
+    return isfinite(*number);
+}
+
+static unsigned long long xml_json_uid(yyjson_val *value)
+{
+    if (yyjson_is_uint(value))
+    {
+        return yyjson_get_uint(value);
+    }
+    if (yyjson_is_str(value))
+    {
+        const char *text = yyjson_get_str(value);
+        char *end;
+        errno = 0;
+        unsigned long long uid = strtoull(text, &end, 10);
+        if (text[0] == '-' || end == text || *end != '\0' || errno == ERANGE)
+        {
+            return 0;
+        }
+        return uid;
+    }
+    double number;
+    if (xml_json_number(value, &number) && number >= 0 &&
+        number < 18446744073709551616.0 && trunc(number) == number)
+    {
+        return (unsigned long long)number;
+    }
+    return 0;
+}
+
+static int xml_duration_ms(double seconds)
+{
+    if (!isfinite(seconds) || seconds < 0 || seconds > MAX_ASS_MS_INT / 1000.0)
+    {
+        return 0;
+    }
+    return (int)(seconds * 1000.0 + 0.5);
+}
 /* 弹幕类型重定义规范 */
 /* +-------------+---------+ */
 /* |  类型名称   |  编号   | */
@@ -95,10 +162,10 @@ bool findSubstr(FILE *file, const char *substr, int maxlen)
  * 5 6 7 内存空间申请失败
  * 8 文件未能按正确格式读入
  */
-int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const float timeShift, STATUS *const status)
+int readXml(const char *const ipFile, df_danmaku_t **head, const char *mode, const float timeShift, df_status_t *const status)
 {
     FILE    *ipF;
-    DANMAKU *tailNode = NULL;
+    df_danmaku_t *tailNode = NULL;
     int      cnt, ch;
 
     /* 刷新status */
@@ -110,7 +177,7 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
     }
 
     /* 打开文件 */
-    if ((ipF = fopen(ipFile, "r")) == NULL)
+    if ((ipF = df_fopen(ipFile, "r")) == NULL)
     {
         return 1; /* 文件打开失败 */
     }
@@ -147,16 +214,17 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
     char key[MAX_TEXT_LENGTH];
     char raw[LABEL_LEN];
 
-    DANMAKU  *danmakuNode;
-    USERPART *userNode;
-    GIFTPART *giftNode;
-    SPPART   *specialNode;
+    df_danmaku_t              *danmakuNode;
+    df_user_part_t            *userNode;
+    df_gift_part_t            *giftNode;
+    df_special_danmaku_part_t *specialNode;
 
     char *labelPtr;
 
-    USERPART user;
-    GIFTPART gift;
+    df_user_part_t user;
+    df_gift_part_t gift;
 
+    bool loaded_record = false;
     bool isDanmaku;
     bool hasUserInfo;
     bool hasGiftInfo;
@@ -164,6 +232,9 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
     while (!feof(ipF))
     {
         type = 0;
+        time = 0;
+        font_size = 25;
+        color = 0;
         isDanmaku = false;
         hasUserInfo = false;
         hasGiftInfo = false;
@@ -207,7 +278,7 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
                 return 2; /* 读文件发生错误 */
             }
 
-            if (labelPtr - label < LABEL_LEN)
+            if (labelPtr - label < LABEL_LEN - 1)
             { /* label长度限制 */
                 *labelPtr = ch;
                 labelPtr++;
@@ -305,7 +376,7 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
             {
                 // sc node
                 getNextWord(&labelPtr, tempText, MAX_TEXT_LENGTH, ' ', true);
-                gift.duration = GET_MS_FLT(atof(deQuotMarks(tempText)));
+                gift.duration = xml_duration_ms(atof(deQuotMarks(tempText)));
             }
             else if (strcmp(key, "level") == 0)
             {
@@ -338,49 +409,76 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
                     strGetLeftPart(NULL, &labelPtr, '\"', LABEL_LEN);
                     strGetLeftPart(raw, &labelPtr, '\"', LABEL_LEN);
 
-                    /* 解析raw部分 */
-                    char  rawKey[KEY_LEN];
-                    char  rawValue[VALUE_LEN];
-                    char *rawPtr = raw;
-
+                    /* 解析raw部分（使用 yyjson） */
                     char coinTypeValue[VALUE_LEN] = {0};
                     xmlUnescape(raw);
-                    strGetLeftPart(NULL, &rawPtr, '{', LABEL_LEN);
 
-                    while (*rawPtr != '\0')
+                    /* 定位 JSON 对象子串 */
+                    char *json_start = strchr(raw, '{');
+                    char *json_end   = strrchr(raw, '}');
+                    if (json_start && json_end && json_end > json_start)
                     {
-                        // TODO: fix json parse.
-                        strGetLeftPart(rawKey, &rawPtr, ':', KEY_LEN);
-                        strGetLeftPart(rawValue, &rawPtr, ',', VALUE_LEN);
-                        deQuotMarks(rawKey);
-                        deQuotMarks(rawValue);
-                        if (strcmp(rawKey, "gift_name") == 0)
+                        size_t json_len = (size_t)(json_end - json_start + 1);
+                        char  *json_buf = (char *)malloc(json_len + 1);
+                        if (json_buf)
                         {
-                            str_copy_n(gift.name, rawValue, GIFT_NAME_LEN);
-                        }
-                        else if (strcmp(rawKey, "coin_type") == 0)
-                        {
-                            str_copy_n(coinTypeValue, rawValue, GIFT_NAME_LEN);
-                        }
-                        else if (strcmp(rawKey, "uid") == 0)
-                        {
-                            if (user.uid == 0)
+                            memcpy(json_buf, json_start, json_len);
+                            json_buf[json_len] = '\0';
+
+                            yyjson_read_err  raw_err;
+                            yyjson_read_flag raw_flags = YYJSON_READ_ALLOW_TRAILING_COMMAS |
+                                                         YYJSON_READ_ALLOW_UNQUOTED_KEY;
+                            yyjson_doc *raw_doc =
+                                yyjson_read_opts(json_buf, json_len, raw_flags, NULL, &raw_err);
+                            free(json_buf);
+
+                            if (raw_doc)
                             {
-                                user.uid = strtoull(rawValue, NULL, 10);
-                            }
-                        }
-                        else if (strcmp(rawKey, "price") == 0)
-                        {
-                            if (gift.price == -1)
-                            {
-                                gift.price = atoi(rawValue);
-                            }
-                        }
-                        else if (strcmp(rawKey, "combo_stay_time") == 0)
-                        {
-                            if (gift.duration == 0)
-                            {
-                                gift.duration = GET_MS_FLT(atof(rawValue));
+                                yyjson_val *raw_root = yyjson_doc_get_root(raw_doc);
+                                if (raw_root && yyjson_is_obj(raw_root))
+                                {
+                                    yyjson_val *val;
+
+                                    val = yyjson_obj_get(raw_root, "gift_name");
+                                    if (val && yyjson_is_str(val))
+                                    {
+                                        str_copy_n(gift.name, yyjson_get_str(val), GIFT_NAME_LEN);
+                                    }
+
+                                    val = yyjson_obj_get(raw_root, "coin_type");
+                                    if (val && yyjson_is_str(val))
+                                    {
+                                        str_copy_n(coinTypeValue, yyjson_get_str(val), GIFT_NAME_LEN);
+                                    }
+
+                                    val = yyjson_obj_get(raw_root, "uid");
+                                    if (val && user.uid == 0)
+                                    {
+                                        user.uid = xml_json_uid(val);
+                                    }
+
+                                    val = yyjson_obj_get(raw_root, "price");
+                                    if (val && gift.price == -1)
+                                    {
+                                        double price;
+                                        if (xml_json_number(val, &price) && price >= 0 && price <= INT_MAX &&
+                                            trunc(price) == price)
+                                        {
+                                            gift.price = (int)price;
+                                        }
+                                    }
+
+                                    val = yyjson_obj_get(raw_root, "combo_stay_time");
+                                    if (val && gift.duration == 0)
+                                    {
+                                        double duration;
+                                        if (xml_json_number(val, &duration))
+                                        {
+                                            gift.duration = xml_duration_ms(duration);
+                                        }
+                                    }
+                                }
+                                yyjson_doc_free(raw_doc);
                             }
                         }
                     }
@@ -438,17 +536,30 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
             /* 申请文本部分空间 */
             if ((text = (char *)malloc((strlen(tempText) + 1) * sizeof(char))) == NULL)
             {
-                errorExit(ipF, *head, danmakuNode);
+                errorExit(ipF, *head, tailNode);
                 return 6; /* 申请内存空间失败 */
             }
 
             strcpy(text, tempText);
         }
 
+        double shifted_time = (double)time + timeShift;
+        if (!isfinite(shifted_time) || shifted_time > MAX_ASS_MS_INT / 1000.0)
+        {
+            free(text);
+            errorExit(ipF, *head, tailNode);
+            return 8;
+        }
+        if (shifted_time < EPS)
+        {
+            shifted_time = 0;
+        }
+
         /* 申请一个节点的空间 */
         {
-            if ((danmakuNode = (DANMAKU *)malloc(sizeof(DANMAKU))) == NULL)
+            if ((danmakuNode = (df_danmaku_t *)calloc(1, sizeof(df_danmaku_t))) == NULL)
             {
+                free(text);
                 errorExit(ipF, *head, tailNode);
                 return 5; /* 申请内存空间失败 */
             }
@@ -489,18 +600,11 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
                 type = messageType;
             }
 
-            /* 计算时轴偏移量 */
-            time += timeShift;
-            if (time < EPS)
-            {
-                time = 0.0f; /* 如果时间加偏移量是负数则置 0 */
-            }
-
             /* 数据部分赋值 */
             xmlUnescape(text); /* 文本内容xml反转义 */
             danmakuNode->text = text;
             danmakuNode->type = type;
-            danmakuNode->time = GET_MS_FLT(time);
+            danmakuNode->time = (int)(shifted_time * 1000.0 + 0.5);
             danmakuNode->font_size = font_size;
             danmakuNode->color = color;
             danmakuNode->special = NULL;
@@ -514,8 +618,9 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
         /* 申请用户信息部分空间 */
         if (hasUserInfo == true)
         {
-            if ((userNode = (USERPART *)malloc(sizeof(USERPART))) == NULL)
+            if ((userNode = (df_user_part_t *)calloc(1, sizeof(df_user_part_t))) == NULL)
             {
+                freeList(danmakuNode);
                 errorExit(ipF, *head, tailNode);
                 return 5; /* 申请内存空间失败 */
             }
@@ -528,8 +633,9 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
         /* 申请礼物信息部分空间 */
         if (hasGiftInfo == true)
         {
-            if ((giftNode = (GIFTPART *)malloc(sizeof(GIFTPART))) == NULL)
+            if ((giftNode = (df_gift_part_t *)calloc(1, sizeof(df_gift_part_t))) == NULL)
             {
+                freeList(danmakuNode);
                 errorExit(ipF, *head, tailNode);
                 return 5; /* 申请内存空间失败 */
             }
@@ -547,9 +653,10 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
             char textPart[MAX_TEXT_LENGTH];
 
             /* 申请特殊弹幕部分的空间 */
-            if ((specialNode = (SPPART *)malloc(sizeof(SPPART))) == NULL)
+            if ((specialNode = (df_special_danmaku_part_t *)malloc(sizeof(df_special_danmaku_part_t))) == NULL)
             {
-                errorExit(ipF, *head, danmakuNode);
+                freeList(danmakuNode);
+                errorExit(ipF, *head, tailNode);
                 return 7; /* 申请内存空间失败 */
             }
             textPtr = text;
@@ -562,7 +669,7 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
             specialNode->fadeEnd =
                 (int)((1 - atof(deQuotMarks(strGetLeftPart(tempText, &textPtr, ',', MAX_TEXT_LENGTH)))) * 255);
             specialNode->existTime =
-                GET_MS_FLT(atof(deQuotMarks(strGetLeftPart(tempText, &textPtr, ',', MAX_TEXT_LENGTH))));
+                xml_duration_ms(atof(deQuotMarks(strGetLeftPart(tempText, &textPtr, ',', MAX_TEXT_LENGTH))));
 
             /* 文本部分 */
             strGetLeftPart(NULL, &textPtr, '\"', MAX_TEXT_LENGTH);
@@ -580,7 +687,7 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
 
             /* 字体部分 */
             strGetLeftPart(NULL, &textPtr, '\"', MAX_TEXT_LENGTH);
-            strGetLeftPart(specialNode->fontName, &textPtr, '\"', MAX_TEXT_LENGTH);
+            strGetLeftPart(specialNode->fontName, &textPtr, '\"', FONTNAME_LEN);
             deQuotMarks(specialNode->fontName);
 
             danmakuNode->special = specialNode;
@@ -597,6 +704,8 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
             tailNode = danmakuNode;
         }
 
+        loaded_record = true;
+
         /* 更新状态 */
         if (status != NULL)
         {
@@ -605,8 +714,9 @@ int readXml(const char *const ipFile, DANMAKU **head, const char *mode, const fl
         }
     } /* 结束 while */
 ENDREAD:
-    if (*head == NULL)
+    if (!loaded_record)
     {
+        errorExit(ipF, *head, tailNode);
         return 8; /* 文件不能按正确格式读入 */
     }
 
@@ -630,7 +740,7 @@ ENDREAD:
  * 2 创建文件失败
  * 3 写文件发生错误
  */
-int writeXml(char const *const fileName, DANMAKU *danmakuHead, STATUS *const status)
+int writeXml(char const *const fileName, df_danmaku_t *danmakuHead, df_status_t *const status)
 {
     /* 刷新status */
     if (status != NULL)
@@ -646,12 +756,12 @@ int writeXml(char const *const fileName, DANMAKU *danmakuHead, STATUS *const sta
     }
 
     FILE    *opF;
-    DANMAKU *ptr = danmakuHead;
+    df_danmaku_t *ptr = danmakuHead;
 
     char tempText[64];
     int  typeInXml;
 
-    if ((opF = fopen(fileName, "w")) == NULL)
+    if ((opF = df_fopen(fileName, "w")) == NULL)
     {
         return 2;
     }
@@ -835,14 +945,10 @@ static char *xmlUnescape(char *const str)
  * 参数：
  * 文件指针/链表头指针/最后一个未结尾节点指针/
  */
-static void errorExit(FILE *ipF, DANMAKU *head, DANMAKU *ptr)
+static void errorExit(FILE *ipF, df_danmaku_t *head, df_danmaku_t *ptr)
 {
     fclose(ipF);
-    if (head != NULL)
-    {
-        ptr->next = NULL;
-        ptr->special = NULL;
-        freeList(head);
-    }
+    (void)ptr;
+    freeList(head);
     return;
 }

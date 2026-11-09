@@ -30,8 +30,21 @@
 
 #include "base/utils.h"
 
-// 定义一个静态缓冲区用于存储完整错误消息
-static char df_full_error_message[2048] = {0};
+// 线程局部错误状态实例（声明见 error.h）
+TLS df_thread_error_t df_tls_error = {0};
+
+// 线程局部缓冲区，用于存储完整错误消息
+static TLS char df_full_error_message[2048] = {0};
+
+// 库版本字符串（与 xmake.lua 中 LIB_VERSION 保持一致）
+#ifndef DF_LIB_VERSION
+    #define DF_LIB_VERSION "2.0.0"
+#endif
+
+const char *df_get_version(void)
+{
+    return DF_LIB_VERSION;
+}
 
 // 内部错误设置函数实现
 df_error_code_t df_set_error_impl(df_error_code_t code, const char *file, const char *function, size_t line,

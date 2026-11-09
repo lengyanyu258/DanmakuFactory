@@ -1,0 +1,522 @@
+// DanmakuFactory GUI — Slint 界面定义
+//
+// 三个标签页：文件管理 / 转换设置 / 转换进度
+// 所有设置属性通过 <=> 双向绑定到控件，Rust 端直接读写属性即可
+
+import { Button, CheckBox, ComboBox, GroupBox, LineEdit, ListView, ProgressIndicator, ScrollView, SpinBox, TabWidget, TextEdit } from "std-widgets.slint";
+
+// 文件列表条目：输入路径 + 该文件的时轴偏移（秒，字符串以支持小数输入）
+export struct FileEntry {
+    path: string,
+    offset: string,
+}
+
+export component MainWindow inherits Window {
+    title: "DanmakuFactory GUI";
+    preferred-width: 960px;
+    preferred-height: 700px;
+    min-width: 800px;
+    min-height: 600px;
+
+    // ==================== 文件管理属性 ====================
+    in-out property <[FileEntry]> files-model;
+    in-out property <string> output-dir;
+    in-out property <int> output-format-index: 0;
+
+    // ==================== 屏幕设置 ====================
+    in-out property <int> screen-res-x: 1920;
+    in-out property <int> screen-res-y: 1080;
+    in-out property <string> screen-display-area: "100";
+    in-out property <string> screen-scroll-area: "100";
+
+    // ==================== 弹幕设置 ====================
+    in-out property <string> danmaku-scroll-duration: "12";
+    in-out property <string> danmaku-fixed-duration: "5";
+    in-out property <int> density-mode: 0;
+    in-out property <int> density-value: 10;
+    in-out property <bool> block-l2r: false;
+    in-out property <bool> block-r2l: false;
+    in-out property <bool> block-top: false;
+    in-out property <bool> block-bottom: false;
+    in-out property <bool> block-special: false;
+    in-out property <bool> block-color: false;
+    in-out property <bool> block-repeat: false;
+    in-out property <bool> danmaku-show-username: false;
+    in-out property <bool> danmaku-keep-blocked: true;
+    in-out property <string> blacklist-path: "";
+    in-out property <bool> blacklist-regex: false;
+    in-out property <[string]> blacklist-rules;
+
+    // ==================== 文本设置 ====================
+    in-out property <int> text-font-size: 38;
+    in-out property <string> text-fontname: "Microsoft YaHei";
+    in-out property <int> text-opacity: 180;
+    in-out property <string> text-outline: "0";
+    in-out property <string> text-shadow: "1";
+    in-out property <bool> text-bold: false;
+    in-out property <int> text-line-spacing: 0;
+    in-out property <string> text-outline-blur: "0";
+    in-out property <int> text-outline-opacity: 255;
+    in-out property <bool> text-font-size-strict: false;
+    in-out property <bool> text-font-size-norm: false;
+
+    // ==================== 消息框设置 ====================
+    in-out property <bool> msgbox-show: true;
+    in-out property <int> msgbox-width: 500;
+    in-out property <int> msgbox-height: 1080;
+    in-out property <int> msgbox-pos-x: 20;
+    in-out property <int> msgbox-pos-y: 0;
+    in-out property <int> msgbox-font-size: 38;
+    in-out property <string> msgbox-duration: "0";
+    in-out property <string> msgbox-gift-min-price: "0";
+
+    // ==================== 统计设置 ====================
+    in-out property <bool> stat-histogram: false;
+    in-out property <bool> stat-table: false;
+
+    // ==================== 运行时状态（Rust 端写入） ====================
+    in property <int> progress: 0;
+    in property <int> progress-max: 100;
+    in property <string> status-text: "就绪";
+    in property <bool> running: false;
+    in-out property <string> log-text;
+    in property <string> lib-version: "";
+
+    // ==================== 回调 ====================
+    callback add-files();
+    callback remove-file(int);
+    callback set-offset(int, string);
+    callback clear-files();
+    callback browse-output-dir();
+    callback browse-blacklist();
+    callback convert();
+    callback save-config();
+    callback load-config();
+
+    VerticalLayout {
+        padding: 4px;
+        spacing: 4px;
+
+        TabWidget {
+            // ============================================================
+            // 标签页 1：文件管理
+            // ============================================================
+            Tab {
+                title: "文件";
+
+                VerticalLayout {
+                    padding: 10px;
+                    spacing: 8px;
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Button {
+                            text: "添加文件...";
+                            enabled: !root.running;
+                            clicked => { root.add-files(); }
+                        }
+                        Button {
+                            text: "清空列表";
+                            enabled: !root.running;
+                            clicked => { root.clear-files(); }
+                        }
+                        Rectangle {
+                            // 弹性占位
+                        }
+                    }
+
+                    GroupBox {
+                        title: "输入文件列表（可为每个文件设置时轴偏移）";
+
+                        VerticalLayout {
+                            ListView {
+                                for entry[idx] in root.files-model: HorizontalLayout {
+                                    spacing: 8px;
+                                    padding-left: 6px;
+                                    padding-right: 6px;
+                                    height: 34px;
+
+                                    Text {
+                                        text: entry.path;
+                                        vertical-alignment: center;
+                                        overflow: elide;
+                                        horizontal-stretch: 1;
+                                    }
+                                    Text {
+                                        text: "偏移(秒):";
+                                        vertical-alignment: center;
+                                        font-size: 11px;
+                                    }
+                                    offset-edit := LineEdit {
+                                        text <=> entry.offset;
+                                        width: 70px;
+                                        enabled: !root.running;
+                                    }
+                                    Button {
+                                        text: "移除";
+                                        enabled: !root.running;
+                                        clicked => { root.remove-file(idx); }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    GroupBox {
+                        title: "输出设置";
+
+                        GridLayout {
+                            spacing: 8px;
+                            padding: 6px;
+
+                            Row {
+                                Text {
+                                    text: "输出格式:";
+                                    vertical-alignment: center;
+                                }
+                                output-format-combo := ComboBox {
+                                    model: ["ASS 字幕", "XML 弹幕", "JSON 弹幕"];
+                                    current-index <=> root.output-format-index;
+                                    width: 160px;
+                                    enabled: !root.running;
+                                }
+                            }
+
+                            Row {
+                                Text {
+                                    text: "输出目录:";
+                                    vertical-alignment: center;
+                                }
+                                LineEdit {
+                                    text <=> root.output-dir;
+                                    placeholder-text: "留空则输出到输入文件同目录";
+                                    enabled: !root.running;
+                                }
+                                Button {
+                                    text: "浏览...";
+                                    enabled: !root.running;
+                                    clicked => { root.browse-output-dir(); }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ============================================================
+            // 标签页 2：转换设置
+            // ============================================================
+            Tab {
+                title: "设置";
+
+                VerticalLayout {
+                    padding: 10px;
+                    spacing: 8px;
+
+                    ScrollView {
+                        VerticalLayout {
+                            spacing: 8px;
+
+                            HorizontalLayout {
+                                spacing: 8px;
+
+                                // ---- 左列：屏幕 + 弹幕 ----
+                                VerticalLayout {
+                                    spacing: 8px;
+
+                                    GroupBox {
+                                        title: "屏幕设置";
+
+                                        GridLayout {
+                                            spacing: 6px;
+                                            padding: 6px;
+
+                                            Row {
+                                                Text { text: "分辨率:"; vertical-alignment: center; }
+                                                SpinBox { value <=> root.screen-res-x; minimum: 1; maximum: 99999; width: 100px; }
+                                                Text { text: "×"; vertical-alignment: center; width: 20px; horizontal-alignment: center; }
+                                                SpinBox { value <=> root.screen-res-y; minimum: 1; maximum: 99999; width: 100px; }
+                                            }
+                                            Row {
+                                                Text { text: "显示区域 (%):"; vertical-alignment: center; }
+                                                LineEdit { text <=> root.screen-display-area; width: 100px; }
+                                            }
+                                            Row {
+                                                Text { text: "滚动区域 (%):"; vertical-alignment: center; }
+                                                LineEdit { text <=> root.screen-scroll-area; width: 100px; }
+                                            }
+                                        }
+                                    }
+
+                                    GroupBox {
+                                        title: "弹幕设置";
+
+                                        GridLayout {
+                                            spacing: 6px;
+                                            padding: 6px;
+
+                                            Row {
+                                                Text { text: "滚动时间 (秒):"; vertical-alignment: center; }
+                                                LineEdit { text <=> root.danmaku-scroll-duration; width: 100px; }
+                                            }
+                                            Row {
+                                                Text { text: "固定时间 (秒):"; vertical-alignment: center; }
+                                                LineEdit { text <=> root.danmaku-fixed-duration; width: 100px; }
+                                            }
+                                            Row {
+                                                Text { text: "密度:"; vertical-alignment: center; }
+                                                HorizontalLayout {
+                                                    spacing: 4px;
+                                                    ComboBox {
+                                                        model: ["无限制", "不重叠", "自定义"];
+                                                        current-index <=> root.density-mode;
+                                                        width: 110px;
+                                                    }
+                                                    SpinBox { value <=> root.density-value; minimum: 1; maximum: 9999; width: 90px; enabled: root.density-mode == 2; }
+                                                }
+                                            }
+                                            Row {
+                                                Text { text: "屏蔽类型:"; vertical-alignment: center; }
+                                                HorizontalLayout {
+                                                    spacing: 2px;
+                                                    CheckBox { text: "L2R"; checked <=> root.block-l2r; }
+                                                    CheckBox { text: "R2L"; checked <=> root.block-r2l; }
+                                                    CheckBox { text: "顶部"; checked <=> root.block-top; }
+                                                    CheckBox { text: "底部"; checked <=> root.block-bottom; }
+                                                }
+                                            }
+                                            Row {
+                                                Text { text: ""; }
+                                                HorizontalLayout {
+                                                    spacing: 2px;
+                                                    CheckBox { text: "特殊"; checked <=> root.block-special; }
+                                                    CheckBox { text: "彩色"; checked <=> root.block-color; }
+                                                    CheckBox { text: "重复"; checked <=> root.block-repeat; }
+                                                }
+                                            }
+                                            Row {
+                                                Text { text: ""; }
+                                                CheckBox { text: "显示用户名"; checked <=> root.danmaku-show-username; }
+                                            }
+                                            Row {
+                                                Text { text: ""; }
+                                                CheckBox { text: "保留被屏蔽的弹幕"; checked <=> root.danmaku-keep-blocked; }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // ---- 右列：文本 + 消息框 + 统计 ----
+                                VerticalLayout {
+                                    spacing: 8px;
+
+                                    GroupBox {
+                                        title: "文本设置";
+
+                                        GridLayout {
+                                            spacing: 6px;
+                                            padding: 6px;
+
+                                            Row {
+                                                Text { text: "字号:"; vertical-alignment: center; }
+                                                SpinBox { value <=> root.text-font-size; minimum: 1; maximum: 200; width: 100px; }
+                                            }
+                                            Row {
+                                                Text { text: "字体:"; vertical-alignment: center; }
+                                                LineEdit { text <=> root.text-fontname; }
+                                            }
+                                            Row {
+                                                Text { text: "不透明度 (1-255):"; vertical-alignment: center; }
+                                                SpinBox { value <=> root.text-opacity; minimum: 1; maximum: 255; width: 100px; }
+                                            }
+                                            Row {
+                                                Text { text: "描边宽度 (0-4):"; vertical-alignment: center; }
+                                                LineEdit { text <=> root.text-outline; width: 100px; }
+                                            }
+                                            Row {
+                                                Text { text: "阴影深度 (0-4):"; vertical-alignment: center; }
+                                                LineEdit { text <=> root.text-shadow; width: 100px; }
+                                            }
+                                            Row {
+                                                Text { text: "行间距 (px):"; vertical-alignment: center; }
+                                                SpinBox { value <=> root.text-line-spacing; minimum: -50; maximum: 50; width: 100px; }
+                                            }
+                                            Row {
+                                                Text { text: "描边模糊 (0-10):"; vertical-alignment: center; }
+                                                LineEdit { text <=> root.text-outline-blur; width: 100px; }
+                                            }
+                                            Row {
+                                                Text { text: "描边不透明度 (0-255):"; vertical-alignment: center; }
+                                                SpinBox { value <=> root.text-outline-opacity; minimum: 0; maximum: 255; width: 100px; }
+                                            }
+                                            Row {
+                                                Text { text: ""; }
+                                                CheckBox { text: "加粗"; checked <=> root.text-bold; }
+                                            }
+                                            Row {
+                                                Text { text: ""; }
+                                                HorizontalLayout {
+                                                    spacing: 8px;
+                                                    CheckBox { text: "严格字号"; checked <=> root.text-font-size-strict; }
+                                                    CheckBox { text: "归一化字号"; checked <=> root.text-font-size-norm; }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    GroupBox {
+                                        title: "消息框设置";
+
+                                        GridLayout {
+                                            spacing: 6px;
+                                            padding: 6px;
+
+                                            Row {
+                                                Text { text: ""; }
+                                                CheckBox { text: "显示消息框"; checked <=> root.msgbox-show; }
+                                            }
+                                            Row {
+                                                Text { text: "大小:"; vertical-alignment: center; }
+                                                SpinBox { value <=> root.msgbox-width; minimum: 1; maximum: 9999; width: 90px; }
+                                                Text { text: "×"; vertical-alignment: center; width: 20px; horizontal-alignment: center; }
+                                                SpinBox { value <=> root.msgbox-height; minimum: 1; maximum: 9999; width: 90px; }
+                                            }
+                                            Row {
+                                                Text { text: "位置:"; vertical-alignment: center; }
+                                                SpinBox { value <=> root.msgbox-pos-x; minimum: 0; maximum: 9999; width: 90px; }
+                                                Text { text: ","; vertical-alignment: center; width: 20px; horizontal-alignment: center; }
+                                                SpinBox { value <=> root.msgbox-pos-y; minimum: 0; maximum: 9999; width: 90px; }
+                                            }
+                                            Row {
+                                                Text { text: "字号:"; vertical-alignment: center; }
+                                                SpinBox { value <=> root.msgbox-font-size; minimum: 1; maximum: 200; width: 90px; }
+                                            }
+                                            Row {
+                                                Text { text: "持续时长 (秒):"; vertical-alignment: center; }
+                                                LineEdit { text <=> root.msgbox-duration; width: 90px; }
+                                            }
+                                            Row {
+                                                Text { text: "礼物最低价 (元):"; vertical-alignment: center; }
+                                                LineEdit { text <=> root.msgbox-gift-min-price; width: 90px; }
+                                            }
+                                        }
+                                    }
+
+                                    GroupBox {
+                                        title: "统计模式";
+
+                                        HorizontalLayout {
+                                            spacing: 12px;
+                                            padding: 6px;
+                                            CheckBox { text: "直方图 (Histogram)"; checked <=> root.stat-histogram; }
+                                            CheckBox { text: "表格 (Table)"; checked <=> root.stat-table; }
+                                        }
+                                    }
+
+                                    GroupBox {
+                                        title: "黑名单";
+
+                                        VerticalLayout {
+                                            spacing: 6px;
+                                            padding: 6px;
+
+                                            HorizontalLayout {
+                                                spacing: 6px;
+                                                Text { text: "规则文件:"; vertical-alignment: center; }
+                                                LineEdit {
+                                                    text <=> root.blacklist-path;
+                                                    placeholder-text: "每行一条屏蔽规则";
+                                                    horizontal-stretch: 1;
+                                                }
+                                                Button {
+                                                    text: "浏览...";
+                                                    clicked => { root.browse-blacklist(); }
+                                                }
+                                            }
+                                            CheckBox { text: "启用正则表达式匹配"; checked <=> root.blacklist-regex; }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // ---- 配置持久化 ----
+                            HorizontalLayout {
+                                spacing: 8px;
+                                height: 40px;
+
+                                Button {
+                                    text: "保存配置";
+                                    clicked => { root.save-config(); }
+                                }
+                                Button {
+                                    text: "加载配置";
+                                    clicked => { root.load-config(); }
+                                }
+                                Rectangle {}
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ============================================================
+            // 标签页 3：转换进度
+            // ============================================================
+            Tab {
+                title: "转换";
+
+                VerticalLayout {
+                    padding: 10px;
+                    spacing: 8px;
+
+                    HorizontalLayout {
+                        spacing: 12px;
+                        height: 44px;
+
+                        convert-btn := Button {
+                            text: root.running ? "转换中..." : "开始转换";
+                            enabled: !root.running;
+                            primary: true;
+                            clicked => { root.convert(); }
+                        }
+
+                        Text {
+                            text: root.status-text;
+                            vertical-alignment: center;
+                            font-size: 14px;
+                        }
+                    }
+
+                    ProgressIndicator {
+                        progress: root.progress-max > 0 ? root.progress / root.progress-max : 0;
+                        height: 24px;
+                    }
+
+                    GroupBox {
+                        title: "日志";
+
+                        VerticalLayout {
+                            TextEdit {
+                                text: root.log-text;
+                                read-only: true;
+                                wrap: word-wrap;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ---- 底部状态栏 ----
+        HorizontalLayout {
+            height: 24px;
+
+            Text {
+                text: "DanmakuFactory GUI v" + "2.0.0" + "  |  核心库: " + root.lib-version;
+                font-size: 11px;
+                color: gray;
+                vertical-alignment: center;
+            }
+        }
+    }
+}

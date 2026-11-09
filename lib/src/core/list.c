@@ -25,11 +25,15 @@
 #include "core/list.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
+#ifndef __EMSCRIPTEN__
 #include <pcre2.h>
+#endif
 
 #include "base/define.h"
+#include "base/error.h"
 
 /*
  * 排序整个链表（桶排序）
@@ -58,6 +62,7 @@ int sortList(df_danmaku_t **listHead, df_status_t *const status)
     }
 
     df_danmaku_t *now = (*listHead)->next;
+    df_danmaku_t *previous = *listHead;
     bool          isSorted = true;
 
     /* 统计弹幕数量并找出最大最小值 */
@@ -75,10 +80,11 @@ int sortList(df_danmaku_t **listHead, df_status_t *const status)
             min = now->time;
         }
 
-        if (isSorted == true && now->next != NULL && now->time > now->next->time)
+        if (previous->time > now->time)
         {
             isSorted = false;
         }
+        previous = now;
     }
 
     /* 如果本来就排序好了直接退出 */
@@ -101,13 +107,13 @@ int sortList(df_danmaku_t **listHead, df_status_t *const status)
 
     /* 入桶 */
     int           index; // 桶号
-    double        denominator = max - min + 1;
+    double        denominator = (double)max - (double)min + 1.0;
     df_danmaku_t *ptr;
     df_danmaku_t *last;
     do
     {
         now = *listHead;
-        index = (int)(bucketNum * ((now->time - min) / denominator));
+        index = (int)(bucketNum * (((double)now->time - (double)min) / denominator));
         if (index >= bucketNum || index < 0)
         {
             /* 溢出非法索引处理 */
@@ -177,25 +183,22 @@ int sortList(df_danmaku_t **listHead, df_status_t *const status)
 /*
  * 弹幕按类型屏蔽
  * 参数：弹幕链表头/屏蔽模式/屏蔽关键字串集/关键词屏蔽是否启用正则表达式
- * 返回值：空
- * 附屏蔽模式：
- * BLK_R2L         屏蔽右左滚动
- * BLK_L2R         屏蔽左右滚动
- * BLK_TOP         屏蔽顶端固定
- * BLK_BOTTOM      屏蔽底端固定
- * BLK_SPECIAL     屏蔽特殊弹幕
- * BLK_COLOR       屏蔽非白色弹幕
+ * 返回值：DF_SUCCESS 正常 / DF_ERROR_INTERNAL_OUT_OF_MEMORY 内存不足
+ * 注意：keyStrings 的生命周期由调用方管理，本函数不释放。
  */
-void blockByType(df_danmaku_t *const danmakuHead, const int mode, char **keyStrings, bool block_list_regex_enabled)
+df_error_code_t blockByType(df_danmaku_t *const danmakuHead, const int mode, char **keyStrings,
+                            bool block_list_regex_enabled)
 {
     if (mode == 0 && keyStrings == NULL)
     {
-        return;
+        return DF_SET_SUCCESS();
     }
 
     // 先编译所有正则表达式
-    pcre2_code **regCodes = NULL;
-    int          regCodeCount = 0;
+#ifndef __EMSCRIPTEN__
+    pcre2_code **regCodes      = NULL;
+    int         *regCodeMap    = NULL; /* regCodeMap[j] = 对应 keyStrings 的下标 */
+    int          regCodeCount  = 0;
 
     if (block_list_regex_enabled && keyStrings != NULL)
     {
@@ -207,71 +210,83 @@ void blockByType(df_danmaku_t *const danmakuHead, const int mode, char **keyStri
                                              &regexErrorCode, &regexErrorOffset, NULL);
             if (code == NULL)
             {
-                PCRE2_UCHAR errorMsg[256];
-                pcre2_get_error_message(regexErrorCode, errorMsg, sizeof(errorMsg));
-                fprintf(stderr,
-                        "\nERROR"
-                        "\nFailed to compile regex expression %d '%s': %s\n",
-                        i, keyStrings[i], errorMsg);
+                // 正则表达式编译失败，静默跳过该条目
+                continue;
+            }
+
+            pcre2_code **newRegCodes = (pcre2_code **)realloc(regCodes, sizeof(pcre2_code *) * (regCodeCount + 1));
+            /* realloc 成功后立即提交，后续失败清理仍持有有效地址。 */
+            if (newRegCodes != NULL)
+            {
+                regCodes = newRegCodes;
+            }
+            int *newRegMap = (int *)realloc(regCodeMap, sizeof(int) * (regCodeCount + 1));
+            if (newRegMap != NULL)
+            {
+                regCodeMap = newRegMap;
+            }
+            if (newRegCodes != NULL && newRegMap != NULL)
+            {
+                regCodes[regCodeCount]     = code;
+                regCodeMap[regCodeCount]   = i;
+                regCodeCount++;
             }
             else
             {
-                pcre2_code **newRegCodes = (pcre2_code **)realloc(regCodes, sizeof(pcre2_code *) * (regCodeCount + 1));
-                if (newRegCodes != NULL)
+                // 内存分配失败，释放已编译的正则并返回错误
+                pcre2_code_free(code);
+                for (int j = 0; j < regCodeCount; j++)
                 {
-                    regCodes = newRegCodes;
-                    regCodes[regCodeCount] = code;
-                    regCodeCount++;
+                    pcre2_code_free(regCodes[j]);
                 }
-                else
-                {
-                    // 内存分配失败，释放当前编译的正则表达式
-                    pcre2_code_free(code);
-                    fprintf(stderr, "\nERROR: Failed to allocate memory for regex code\n");
-                }
+                free(regCodes);
+                free(regCodeMap);
+                return DF_SET_ERROR(DF_ERROR_INTERNAL_OUT_OF_MEMORY,
+                                    "Out of memory while compiling block list regex");
             }
         }
     }
+#endif
 
     df_danmaku_t *ptr = (df_danmaku_t *)danmakuHead;
     while (ptr != NULL)
     {
-        if ((mode & BLK_COLOR) && !IS_SPECIAL(ptr) && ptr->color != 0xFFFFFF)
+        if ((mode & DF_BLOCK_MODE_COLOR) && !IS_SPECIAL(ptr) && ptr->color != 0xFFFFFF)
         {
             if (ptr->type > 0)
             {
                 ptr->type *= -1;
             }
         }
-        else if ((mode & BLK_R2L) && IS_R2L(ptr))
+        else if ((mode & DF_BLOCK_MODE_R2L) && IS_R2L(ptr))
         {
             if (ptr->type > 0)
             {
                 ptr->type *= -1;
             }
         }
-        else if ((mode & BLK_L2R) && IS_L2R(ptr))
+        else if ((mode & DF_BLOCK_MODE_L2R) && IS_L2R(ptr))
         {
             if (ptr->type > 0)
             {
                 ptr->type *= -1;
             }
         }
-        else if ((mode & BLK_TOP) && IS_TOP(ptr))
+        else if ((mode & DF_BLOCK_MODE_TOP) && IS_TOP(ptr))
         {
             if (ptr->type > 0)
             {
                 ptr->type *= -1;
             }
         }
-        else if ((mode & BLK_BOTTOM) && IS_BTM(ptr))
+        else if ((mode & DF_BLOCK_MODE_BOTTOM) && IS_BTM(ptr))
         {
             if (ptr->type > 0)
             {
                 ptr->type *= -1;
             }
         }
-        else if ((mode & BLK_SPECIAL) && IS_SPECIAL(ptr))
+        else if ((mode & DF_BLOCK_MODE_SPECIAL) && IS_SPECIAL(ptr))
         {
             if (ptr->type > 0)
             {
@@ -284,45 +299,57 @@ void blockByType(df_danmaku_t *const danmakuHead, const int mode, char **keyStri
             // 逐个检查关键字串
             for (int i = 0; keyStrings[i] != NULL; i++)
             {
-                if (block_list_regex_enabled && i < regCodeCount)
+#ifndef __EMSCRIPTEN__
+                if (block_list_regex_enabled)
                 {
-                    // 使用正则表达式匹配
-                    pcre2_match_data *matchData = pcre2_match_data_create_from_pattern(regCodes[i], NULL);
-                    int               matchNum =
-                        pcre2_match(regCodes[i], (PCRE2_SPTR)ptr->text, PCRE2_ZERO_TERMINATED, 0, 0, matchData, NULL);
-
-                    if (matchNum < 0)
+                    // 在 regCodeMap 中查找当前 keyStrings[i] 对应的已编译正则
+                    pcre2_code *matchedCode = NULL;
+                    for (int j = 0; j < regCodeCount; j++)
                     {
-                        switch (matchNum)
+                        if (regCodeMap[j] == i)
                         {
-                        case PCRE2_ERROR_NOMATCH:
-                            // 未能匹配到，无需处理
+                            matchedCode = regCodes[j];
                             break;
-                        default: {
-                            // 其他错误
-                            PCRE2_UCHAR errorMsg[256];
-                            pcre2_get_error_message(matchNum, errorMsg, sizeof(errorMsg));
-                            fprintf(stderr,
-                                    "\nERROR"
-                                    "\nRegex match failed for '%s': %s\n",
-                                    keyStrings[i], errorMsg);
                         }
+                    }
+
+                    if (matchedCode != NULL)
+                    {
+                        pcre2_match_data *matchData = pcre2_match_data_create_from_pattern(matchedCode, NULL);
+                        if (matchData == NULL)
+                        {
+                            // OOM，跳过本条匹配
+                            continue;
                         }
+                        int matchNum =
+                            pcre2_match(matchedCode, (PCRE2_SPTR)ptr->text, PCRE2_ZERO_TERMINATED, 0, 0, matchData,
+                                        NULL);
                         pcre2_match_data_free(matchData);
+
+                        if (matchNum >= 0)
+                        {
+                            if (ptr->type > 0)
+                            {
+                                ptr->type *= -1;
+                            }
+                            break;
+                        }
                     }
                     else
                     {
-                        // 匹配成功
-                        PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(matchData);
-                        if (ptr->type > 0)
+                        // 该模式编译失败被跳过，退化为字符串匹配
+                        if (strstr(ptr->text, keyStrings[i]) != NULL)
                         {
-                            ptr->type *= -1;
+                            if (ptr->type > 0)
+                            {
+                                ptr->type *= -1;
+                            }
+                            break;
                         }
-                        pcre2_match_data_free(matchData);
-                        break;
                     }
                 }
                 else
+#endif
                 {
                     // 使用简单的字符串匹配
                     if (strstr(ptr->text, keyStrings[i]) != NULL)
@@ -340,7 +367,8 @@ void blockByType(df_danmaku_t *const danmakuHead, const int mode, char **keyStri
     }
 
     // 释放编译的正则表达式
-    if (block_list_regex_enabled && regCodes != NULL)
+#ifndef __EMSCRIPTEN__
+    if (regCodes != NULL)
     {
         for (int i = 0; i < regCodeCount; i++)
         {
@@ -348,14 +376,10 @@ void blockByType(df_danmaku_t *const danmakuHead, const int mode, char **keyStri
         }
         free(regCodes);
     }
+    free(regCodeMap);
+#endif
 
-    if (keyStrings != NULL && !block_list_regex_enabled)
-    {
-        for (int i = 0; keyStrings[i] != NULL; ++i)
-        {
-            free(keyStrings[i]);
-        }
-    }
+    return DF_SET_SUCCESS();
 }
 
 /*
@@ -369,7 +393,10 @@ void freeList(df_danmaku_t *listHead)
     while (ptr != NULL)
     {
         listHead = ptr->next;
-        free(ptr->text); /* 释放文本部分的空间 */
+        free(ptr->text);    /* 释放文本部分的空间 */
+        free(ptr->user);    /* 释放用户信息部分的空间 */
+        free(ptr->gift);    /* 释放礼物信息部分的空间 */
+        free(ptr->special); /* 释放特殊弹幕部分的空间 */
         free(ptr);
         ptr = listHead;
     }
@@ -379,7 +406,7 @@ void normFontSize(df_danmaku_t *const danmakuHead, const df_config_t config)
 {
     bool doNormalize = false;
 
-    if (config.font_size_norm)
+    if (config.text.font_size_norm)
     {
         for (df_danmaku_t *ptr = (df_danmaku_t *)danmakuHead; ptr != NULL; ptr = ptr->next)
         {
@@ -388,7 +415,7 @@ void normFontSize(df_danmaku_t *const danmakuHead, const df_config_t config)
                 continue;
             }
 
-            if (ptr->font_size <= 0 || ptr->font_size >= config.resolution.y)
+            if (ptr->font_size <= 0 || ptr->font_size >= config.screen.resolution.y)
             {
                 doNormalize = true;
                 break;
@@ -396,7 +423,7 @@ void normFontSize(df_danmaku_t *const danmakuHead, const df_config_t config)
         }
     }
 
-    if (config.font_size_strict || doNormalize)
+    if (config.text.font_size_strict || doNormalize)
     {
         for (df_danmaku_t *ptr = (df_danmaku_t *)danmakuHead; ptr != NULL; ptr = ptr->next)
         {

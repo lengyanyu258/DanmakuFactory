@@ -1,7 +1,7 @@
 /* MIT License
  *
  * Copyright (c) 2022 hkm
- * Copyright (c) 2025 lengyanyu258
+ * Copyright (c) 2025 Shawn Sun <lengyanyu258@outlook.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,22 +22,23 @@
  * SOFTWARE.
  */
 
-#ifndef CLI_APP_H_
-#define CLI_APP_H_
+#ifndef DF_JSON_FILE_H_
+#define DF_JSON_FILE_H_
 
-#include <stdbool.h>
+#include "base/define.h"
+#include "core/process.h"
 
-#define GUI_SUPPORT // 给GUI版本提供一些特殊的功能支持
-#define CLI_SUPPORT // 给GUI版本提供一些特殊的功能支持
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
-#define VERSION          "1.70"
-#define EDITION          "CLI Release"
-#define CONFIG_FILE_NAME "DanmakuFactoryConfig.json"
-#define FORMAT_LEN       16
+extern int readJson(const char *const ipFile, df_danmaku_t **head, const char *mode, const float timeShift,
+                    df_status_t *const status);
+extern int writeJson(const char *const fileName, df_danmaku_t *danmakuHead, df_status_t *const status);
 
-#define ISFORMAT(str)   (!strcmp("ass", str) || !strcmp("xml", str) || !strcmp("json", str))
-#define ISNUMBERIC(str) (isDesignatedStr(str, "\"\'-.0123456789"))
-
-typedef struct fileInfo FINFO;
+#ifdef __cplusplus
+}
+#endif
 
 #endif

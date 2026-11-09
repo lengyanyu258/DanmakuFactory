@@ -48,12 +48,14 @@ typedef struct coordinate_s
     X(DF_STATISTICS_MODE_TABLE, 1 << 0)                                                                                \
     X(DF_STATISTICS_MODE_HISTOGRAM, 1 << 1)
 
-typedef enum : uint8_t
+/* 枚举底层类型语法（enum : uint8_t）为 C23 特性，为兼容 C11 编译器改用普通枚举 + 定宽 typedef */
+enum
 {
 #define X(name, value) name = value,
     DF_STATISTICS_MODE_ENUM_ITEMS
 #undef X
-} df_stats_flag_t;
+};
+typedef uint8_t df_stats_flag_t;
 
 #define DF_BLOCK_MODE_ENUM_ITEMS                                                                                       \
     X(DF_BLOCK_MODE_NONE, 0)                                                                                           \
@@ -65,12 +67,13 @@ typedef enum : uint8_t
     X(DF_BLOCK_MODE_COLOR, 1 << 5)                                                                                     \
     X(DF_BLOCK_MODE_REPEAT, 1 << 6)
 
-typedef enum : uint8_t
+enum
 {
 #define X(name, value) name = value,
     DF_BLOCK_MODE_ENUM_ITEMS
 #undef X
-} df_block_flag_t;
+};
+typedef uint8_t df_block_flag_t;
 
 typedef enum
 {
@@ -158,69 +161,7 @@ typedef struct runtime_info_s
     df_fileinfo_t  output_file;
 } df_runtime_info_t;
 
-// 默认运行时配置
-static df_runtime_info_t default_runtime_info = {
-    // 默认配置
-    .config =
-        {
-            // 显示设置
-            .screen =
-                {
-                    .resolution      = {1920, 1080},            /* 分辨率 */
-                    .display_area    = 1.00,                    /* 显示区域 */
-                    .scroll_area     = 1.00,                    /* 滚动区域 */
-                    .statistics_mode = DF_STATISTICS_MODE_NONE, /* 统计模式 */
-                },
-            // 弹幕设置
-            .danmaku =
-                {
-                    .density                  = 0,                  /* 弹幕密度 */
-                    .scroll_duration          = 12.0,               /* 滚动时间 */
-                    .fixed_duration           = 5.0,                /* 固定时间 */
-                    .show_username            = false,              /* 是否显示用户名 */
-                    .block_mode               = DF_BLOCK_MODE_NONE, /* 屏蔽模式 */
-                    .keep_blocked             = true,               /* 是否保存屏蔽部分 */
-                    .block_list               = NULL,               /* 弹幕黑名单 */
-                    .block_list_regex_enabled = false,              /* 弹幕黑名单是否启用正则表达式匹配 */
-                },
-            // 文本设置
-            .text =
-                {
-                    .fontname         = "Microsoft YaHei", /* 字体 */
-                    .font_size        = 38,                /* 字号 */
-                    .font_size_strict = false,             /* 是否严格保持指定的字号大小 */
-                    .font_size_norm   = false,             /* 是否修正字号 */
-                    .bold             = false,             /* 是否加粗 */
-                    .shadow           = 1.0f,              /* 阴影 */
-                    .opacity          = 180,               /* 不透明度 */
-                    .outline          = 0.0f,              /* 描边 */
-                    .outline_blur     = 0.0f,              /* 描边模糊半径 */
-                    .outline_opacity  = 255,               /* 描边不透明度 */
-                    .line_spacing     = 0,                 /* 行间距 */
-                },
-            // 消息框设置
-            .msgbox =
-                {
-                    .show           = true,        /* 是否显示消息框 */
-                    .size           = {500, 1080}, /* 消息框大小 */
-                    .pos            = {20, 0},     /* 消息框位置 */
-                    .font_size      = 38,          /* 消息框内文字大小 */
-                    .duration       = 0.0f,        /* 消息框持续时长 */
-                    .gift_min_price = 0.0f,        /* 消息框礼物最低价格限制 */
-                },
-        },
-
-    .input_files =
-        {
-            .number    = 0,
-            .fileinfos = NULL,
-        },
-    .output_file =
-        {
-            .path       = "",
-            .type       = DF_FILETYPE_NONE,
-            .time_shift = 0.0f,
-        },
-};
+// 默认运行时配置（定义在 config/define.c，避免每个编译单元各持一份拷贝）
+const df_runtime_info_t *df_get_default_runtime_info_internal(void);
 
 #endif

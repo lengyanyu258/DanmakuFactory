@@ -1,0 +1,47 @@
+{
+  "review_date": "2026-10-01",
+  "current_commit": "e2d0cd95f46550b094c890781ea385656f8021e8",
+  "flutter_local_commit": "01caa99344cd167f88d3ce1a625407f9945eeb10",
+  "flutter_release_tag": "v1.70.2",
+  "flutter_release_url": "https://github.com/hihkm/DanmakuFactory/releases/tag/v1.70.2",
+  "flutter_windows_zip_bytes": 12356561,
+  "flutter_windows_uncompressed_bytes": 29477885,
+  "flutter_windows_file_count": 18,
+  "flutter_engine_bytes": 19036160,
+  "flutter_engine_zip_entry_bytes": 8148515,
+  "flutter_dart_app_bytes": 6128560,
+  "flutter_dart_app_zip_entry_bytes": 2412335,
+  "flutter_existing_core_bytes": 398336,
+  "slint_exe_existing_bytes": 17015808,
+  "slint_core_existing_bytes": 2433536,
+  "slint_existing_pair_zip_bytes": 8445439,
+  "slint_existing_pair_uncompressed_bytes": 19449344,
+  "slint_lock_version": "1.17.1",
+  "slint_existing_binary_features": [
+    "accessibility",
+    "backend-default",
+    "renderer-femtovg",
+    "renderer-software",
+    "system-tray"
+  ],
+  "slint_exe_matches_current_source": false,
+  "paired_slint_archive_is_verified_release": false,
+  "fresh_release_build_status": "Failed: Visual Studio C++ toolchain not found; no fresh Slint/Flutter runtime benchmark was obtained",
+  "runtime_dependencies_observed": {
+    "flutter_runner": [
+      "MSVCP140.dll",
+      "VCRUNTIME140.dll",
+      "VCRUNTIME140_1.dll"
+    ],
+    "slint": [
+      "VCRUNTIME140.dll"
+    ]
+  },
+  "caveats": [
+    "Windows ZIP comparison combines a published Flutter release with historical local Slint files; it is not a same-source benchmark",
+    "VC runtime DLLs are excluded from both measured ZIPs",
+    "No RAM, startup time, download success-rate or fresh GUI functional test was measured",
+    "Flutter local source is older than the published release",
+    "No source files in either project were edited"
+  ]
+}

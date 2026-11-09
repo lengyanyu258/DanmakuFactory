@@ -2,6 +2,12 @@
 .xmake/
 build/
 
+# Rust / Cargo
+target/
+
+# Python
+__pycache__/
+
 # CMake
 CMakeLists.txt
 CMakeSettings.json
@@ -10,11 +16,15 @@ CMakeSettings.json
 .cache/
 compile_commands.json
 
+# Dart
+.dart_tool/
+
 # Visual Studio
 .vs/
 obj/
 
 # VSCode
+.qoder/
 
 # MacOS Cache
 .DS_Store
